@@ -40,7 +40,7 @@
 
 # | Autonomous loop: analysis → generation → testing → patch | `codex exec` runs inside sandbox; repo test command executes; diff extracted |
 
-# | Startup under 5 seconds | Measured `submit → sandbox\_ready` (infrastructure) and `submit → first reasoning token` (user-perceived); warm-start via MicroVM snapshot resume |
+# | Startup under 5 seconds | Measured `submit → first reasoning token` (user-perceived) and `submit → restored-runner readiness check` (infrastructure). Report cold (first launch from image) and warm (resume from suspended VM) separately, with median and p95 on the control-plane clock. State that the readiness metric excludes repo clone and model latency. |
 
 # | React control plane streaming live traces | Hono `streamSSE` endpoint; three panels: reasoning, terminal, diff |
 
@@ -108,7 +108,11 @@
 
 # 
 
-# \*\*Key injection\*\*: `OPENROUTER\_API\_KEY` and `GIT\_PUSH\_TOKEN` live in a gitignored `.env` file, are loaded by the control plane only, and are injected into the MicroVM environment at launch. A unit test asserts neither value appears in any log output.
+# \*\*Key injection\*\*: `OPENROUTER\_API\_KEY` and `GIT\_PUSH\_TOKEN` live in a gitignored `.env` file and are loaded by the control plane only. `GIT\_PUSH\_TOKEN` never enters the sandbox. The control plane applies the captured diff to a fresh clone of the target repo and pushes from there. The sandbox only receives `OPENROUTER\_API\_KEY`, which is a scoped key with a hard credit limit. It arrives in the runner POST body and is set only in the codex child process env; it is never baked into the image or captured in the snapshot. A unit test asserts neither value appears in any log output.
+
+# \*\*Redaction\*\*: Before any event reaches RunStore or SSE, redact exact secret values and known prefixes (`sk-or-`, `github\_pat\_`, `ghp\_`) by replacing them with `[REDACTED]`. Redaction applies to stdout, stderr, reasoning, and push responses.
+
+# \*\*Control plane hardening\*\*: The control plane binds to 127.0.0.1 only. TASK arrives in the POST body from the control plane, then is passed to `codex` as a single argv element or child-process env var, never spliced into a shell string. `repoUrl` accepts only `https://github.com/*` URLs.
 
 # 
 
@@ -142,7 +146,11 @@
 
 # &#x20; │ node, python, git, and codex; Lambda snapshots the initialized state
 
-# &#x20; │ entrypoint.sh:
+# &#x20; │ entrypoint.sh starts an idle HTTP runner on :8080 (snapshot captured here);
+
+# &#x20; │ after restore, the control plane POSTs { repoUrl, task } to the runner;
+
+# &#x20; │ the runner then:
 
 # &#x20; │   git clone REPO\_URL /workspace
 
@@ -152,11 +160,15 @@
 
 # &#x20; │     --skip-git-repo-check "TASK"
 
-# &#x20; │   npm test || true
+# &#x20; │   npm test; TEST\_EXIT=$?   \# no set -e in force
 
-# &#x20; │   git diff > /tmp/patch.diff
+# &#x20; │   emit test\_result { exitCode: $TEST\_EXIT }
+
+# &#x20; │   git add -A && git diff --cached > /tmp/patch.diff
 
 # &#x20; │   echo "\_\_DIFF\_START\_\_"; cat /tmp/patch.diff; echo "\_\_DIFF\_END\_\_"
+
+# &#x20; │   exit  (run status = error if TEST\_EXIT != 0, else done)
 
 # &#x20; ▼
 
@@ -171,6 +183,12 @@
 # 
 
 # Lambda MicroVMs are created from a Dockerfile package uploaded to S3; Lambda executes the Dockerfile, starts the application, and captures a snapshot of the fully initialized environment. Subsequent `run-microvm` calls resume from that snapshot with rapid startup. Suspend and resume preserve memory and disk state, which is the basis of the warm-start claim.
+
+# \*\*Entrypoint and snapshot\*\*: Lambda runs the entrypoint BEFORE capturing the snapshot, so the entrypoint must not perform the run. entrypoint.sh starts an idle HTTP runner on port 8080 that waits for a task. Lambda captures the snapshot with the runner idle. After restore, the control plane POSTs `{ repoUrl, task }` to the runner. The runner then performs clone → codex exec → test → diff → emit events, and exits after the run completes.
+
+# \*\*Test result and diff capture\*\*: The runner executes `npm test; TEST\_EXIT=$?` (no `|| true`, and no `set -e` in force, so a failing test cannot abort before the exit code is captured), and emits a `test\_result` event with `exitCode: $TEST\_EXIT`. The run's final status is `error` if `TEST\_EXIT != 0`, not `done`. The patch is captured with `git add -A && git diff --cached > /tmp/patch.diff` so untracked new files appear in the patch.
+
+# \*\*Stdout transport\*\*: MicroVM stdout and stderr stream to CloudWatch Logs. The control plane subscribes to the log group via a subscription filter and parses JSONL events in real time. If observed lag exceeds 2 seconds, fall back to the runner writing events to a file in S3 that the control plane polls every 500ms. Choose one transport and document it in DECISION\_LOG.
 
 # 
 
@@ -358,6 +376,8 @@
 
 # | Deterministic | No real network, no sleep, no unseeded randomness | Live API call in unit test |
 
+# | Red-run evidence | Before "tests approved", the test is run against a stub implementation and fails on assertions; failing output is pasted; expected values are hand-authored | Fails on import/compile error, or expected values are derived from the same logic the test checks |
+
 # 
 
 # \### Unit tests (no cloud)
@@ -374,6 +394,18 @@
 
 # \- \*\*SSE\*\*: valid wire format `event: <type>\\ndata: <json>\\n\\n`.
 
+# \- \*\*Redaction\*\*: given an event containing the literal `OPENROUTER\_API\_KEY` value, assert the SSE bytes and stored `RunRecord` contain no trace of it. Test both success and failure paths.
+
+# \- \*\*PatchDelivery.extractDiff (untracked)\*\*: a newly created untracked file appears in the diff.
+
+# \- \*\*Run completion\*\*: codex exits 0 but `npm test` exits 1 → run status is `error`, `test\_result.exitCode === 1`, and SSE reflects the failure.
+
+# \- \*\*EventParser (split marker)\*\*: a diff marker split across two stdout chunks produces exactly one `diff` event.
+
+# \- \*\*SSE (multi-line diff)\*\*: a multi-line diff round-trips as one event.
+
+# \- \*\*RunStore (duplicate)\*\*: duplicate submit for the same `repoUrl` + `task` is rejected.
+
 # 
 
 # \### Integration test (one, marked `@integration`)
@@ -384,7 +416,7 @@
 
 # \### Simulation test
 
-# `simulate-100.test.ts` starts 100 SSE connections against the simulation endpoint and asserts all receive at least one event and none disconnect unexpectedly.
+# `simulate-100.test.ts`: All simulated runs stream over ONE SSE connection, each event tagged with `runId`. Browsers limit ~6 HTTP/1.1 connections per origin; 100 EventSources would stall 94. The test asserts every runId receives at least one event and the connection does not disconnect unexpectedly. Verify in a real browser that all 100 traces render concurrently.
 
 # 
 
@@ -400,7 +432,7 @@
 
 # |---|---|---|
 
-# | 0 — Baseline | 1–2h | AWS credentials work; one Lambda MicroVM runs `echo hello`; OpenRouter key works via `curl` |
+# | 0 — Baseline | 1–2h | Real Lambda MicroVM from the prebuilt image, real Codex CLI, real OpenRouter model, tiny repo, non-empty diff returned. `echo hello` is not sufficient. |
 
 # | 1 — Sandbox + Codex | 3–4h | Prebuilt image contains `codex`; `codex exec` on `hospital-queue` returns a diff; startup measured |
 
@@ -416,13 +448,15 @@
 
 # 
 
-# \*\*Hard stops\*\*:
+# \*\*Cut order if Phase 1 overruns\*\*:
 
-# \- If Phase 1 exceeds 4 hours: cut branch push, deliver diff only.
+# 1\. Branch push — the copyable diff already proves patch delivery.
 
-# \- If Phase 2 is not streaming by hour 12: reduce UI to a single terminal panel, log reasoning as text.
+# 2\. Resume animation and warm-pool tuning — keep the base snapshot timing.
 
-# \- \*\*Never cut\*\*: TDD gate, error handling, token-safety test.
+# 3\. If no real-MicroVM diff by hour 6, switch `MicroVMLauncher` to local Docker running the same image and disclose.
+
+# \*\*Never cut\*\*: the test step in the loop, real SSE streaming, both startup measurements, or honest disclosure.
 
 # 
 
