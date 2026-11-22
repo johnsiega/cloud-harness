@@ -1,0 +1,8 @@
+﻿node_modules/
+.env
+*.env
+dist/
+build/
+coverage/
+subswitch.config.json
+.claude/settings.local.json
