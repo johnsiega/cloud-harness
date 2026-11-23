@@ -22,6 +22,9 @@ if [ "$CLONE_EXIT" -ne 0 ] || ! cd "$WORKDIR"; then
   exit 1
 fi
 
+# The control plane applies the patch to a fresh clone at exactly this commit, so report it before codex can move HEAD.
+printf '{"type":"base_commit","sha":"%s"}\n' "$(git rev-parse HEAD)"
+
 # TASK is a single argv element after `--`: never spliced into a shell string.
 codex exec \
   -c sandbox_mode=workspace-write \
@@ -41,7 +44,8 @@ bash -c "$TEST_CMD" >&2
 TEST_EXIT=$?
 emit test_result "$TEST_EXIT"
 
-git add -A && git diff --cached > "$PATCH"
+# --binary keeps binary files in the patch (a plain diff says "Binary files differ" and drops the bytes).
+git add -A && git diff --cached --binary > "$PATCH"
 echo "__DIFF_START__"
 cat "$PATCH"
 echo "__DIFF_END__"

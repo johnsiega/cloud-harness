@@ -126,3 +126,29 @@ describe("EventParser", () => {
     assert.equal(b[0].ts, 250);
   });
 });
+
+describe("EventParser: base commit", () => {
+  const SHA = "ea724cea11c755453e8d826872470b2448c1cca1";
+
+  test("baseCommit is null until a base_commit event arrives, then holds its SHA, and the event itself yields nothing", () => {
+    const p = parser();
+    assert.equal(p.baseCommit, null);
+    assert.deepEqual(p.push(j({ type: "base_commit", sha: SHA })), []);
+    assert.equal(p.baseCommit, SHA);
+  });
+
+  test("a malformed SHA is ignored: short, uppercase, non-hex, wrong type, option-like, or extra characters", () => {
+    for (const sha of ["ea724ce", SHA.toUpperCase(), "z".repeat(40), 42, null, "--upload-pack=x", SHA + "\n", SHA + "a", ""]) {
+      const p = parser();
+      p.push(j({ type: "base_commit", sha }));
+      assert.equal(p.baseCommit, null, JSON.stringify(sha));
+    }
+  });
+
+  test("the first valid base_commit wins, a later one cannot change it", () => {
+    const p = parser();
+    p.push(j({ type: "base_commit", sha: SHA }));
+    p.push(j({ type: "base_commit", sha: "0".repeat(40) }));
+    assert.equal(p.baseCommit, SHA);
+  });
+});

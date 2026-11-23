@@ -6,6 +6,7 @@ export interface EventParser {
   push(chunk: string): TraceEvent[];
   end(): TraceEvent[];
   readonly codexExit: number | null;
+  readonly baseCommit: string | null;
 }
 
 type Json = Record<string, any>;
@@ -16,6 +17,7 @@ export function createEventParser(o: { now?: () => number } = {}): EventParser {
   let inDiff = false;
   let diffLines: string[] = [];
   let codexExit: number | null = null;
+  let baseCommit: string | null = null;
 
   const mapJson = (j: Json, out: TraceEvent[]) => {
     const ts = now();
@@ -31,6 +33,10 @@ export function createEventParser(o: { now?: () => number } = {}): EventParser {
     } else if (j.type === "error") out.push({ type: "stderr", ts, text: String(j.message ?? "") });
     else if (j.type === "turn.failed") out.push({ type: "stderr", ts, text: String(j.error?.message ?? "") });
     else if (j.type === "codex_exit") codexExit = Number(j.exitCode);
+    else if (j.type === "base_commit") {
+      // Strict 40-hex lowercase, first one wins: this value later goes to `git`, so nothing else may through.
+      if (baseCommit === null && typeof j.sha === "string" && /^[0-9a-f]{40}$/.test(j.sha)) baseCommit = j.sha;
+    }
     else if (j.type === "test_result") {
       const exitCode = Number(j.exitCode);
       out.push({ type: "test_result", ts, exitCode, summary: exitCode === 0 ? "tests passed" : `tests failed (exit ${exitCode})` });
@@ -75,5 +81,6 @@ export function createEventParser(o: { now?: () => number } = {}): EventParser {
       return out;
     },
     get codexExit() { return codexExit; },
+    get baseCommit() { return baseCommit; },
   };
 }

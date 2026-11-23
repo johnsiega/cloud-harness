@@ -102,6 +102,28 @@ describe("executeRun: success path", () => {
   });
 });
 
+describe("executeRun: base commit", () => {
+  const SHA = "ea724cea11c755453e8d826872470b2448c1cca1";
+  const BASE = J({ type: "base_commit", sha: SHA });
+
+  test("records the runner's base commit on the run without adding a trace event", async () => {
+    const r = await run(fake({ chunks: [[BASE, msg("Adding the comment"), codexExit(0)], [testResult(0), ...diffBlock()]] }));
+    assert.equal(r.rec.baseCommit, SHA);
+    assert.deepEqual(r.types, ["sandbox_resuming", "sandbox_ready", "reasoning", "test_result", "diff", "done"]);
+  });
+
+  test("a run whose runner never reported a base commit has none recorded", async () => {
+    const r = await run(fake({ chunks: HAPPY }));
+    assert.equal(r.rec.baseCommit, undefined);
+  });
+
+  test("the base commit is kept even when the run fails afterwards", async () => {
+    const r = await run(fake({ chunks: [[BASE, codexExit(2), testResult(1), ...diffBlock()]] }));
+    assert.equal(r.rec.status, "error");
+    assert.equal(r.rec.baseCommit, SHA);
+  });
+});
+
 describe("executeRun: failure paths", () => {
   test("codex exits 0 but tests exit 1: status error, test_result.exitCode 1, done.exitCode 1, and SSE shows it", async () => {
     const r = await run(fake({ chunks: [[msg("done"), codexExit(0), testResult(1), ...diffBlock()]] }));

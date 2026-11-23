@@ -44,6 +44,7 @@ interface Scenario {
   phpExit?: number;
   testCmd?: string;
   appKey?: string;
+  repoUrl?: string;
 }
 
 function runScenario(root: string, o: Scenario = {}) {
@@ -70,7 +71,7 @@ function runScenario(root: string, o: Scenario = {}) {
     ...(process.env as Record<string, string>),
     PATH: `${bin}${delimiter}${process.env.PATH}`,
     ROOT: root,
-    REPO_URL: makeOrigin(root),
+    REPO_URL: o.repoUrl ?? makeOrigin(root),
     TASK: o.task ?? "add a comment to QueueEventLog",
     WORKDIR: `${root}/work`,
     OPENROUTER_API_KEY: KEY,
@@ -563,5 +564,52 @@ describe("runner script: Laravel APP_KEY", () => {
   test("the test command itself is unchanged: still composer install then php artisan test", () => {
     const { read } = runScenario(makeRoot());
     assert.deepEqual(read("calls.log").trim().split(/\r?\n/), ["composer install --no-interaction", "php artisan test"]);
+  });
+});
+
+// ---------- Phase 3: the push needs the exact base commit and a binary-safe patch ----------
+describe("runner script: base commit and binary-safe diff", () => {
+  const sha = (root: string) => git(`${root}/origin`, "rev-parse", "HEAD").trim();
+
+  test("emits base_commit with the SHA of the commit it cloned", () => {
+    const root = makeRoot();
+    const { events } = runScenario(root);
+    const bc = events.find((e) => e.type === "base_commit");
+    assert.ok(bc, "no base_commit event was emitted");
+    assert.match(bc.sha, /^[0-9a-f]{40}$/);
+    assert.equal(bc.sha, sha(root));
+  });
+
+  test("base_commit comes before codex runs, so it survives a codex that commits or crashes", () => {
+    const root = makeRoot();
+    const { lines, events } = runScenario(root, { codexBody: `echo '// c' >> ${EDITED}\ngit -c user.name=x -c user.email=x@x commit -qam wip\nexit 3` });
+    assert.equal(events.find((e) => e.type === "base_commit")?.sha, sha(root), "must be the original commit, not codex's new one");
+    assert.ok(idx(lines, '"base_commit"') >= 0 && idx(lines, '"base_commit"') < idx(lines, '"item.completed"'));
+  });
+
+  test("no base_commit is emitted when the clone fails", () => {
+    const root = makeRoot();
+    const { events, lines } = runScenario(root, { repoUrl: `${root}/does-not-exist` });
+    assert.equal(events.some((e) => e.type === "base_commit"), false);
+    assert.ok(idx(lines, '"clone_exit"') >= 0);
+  });
+
+  test("a binary file codex adds travels in the patch and applies to a fresh clone of the base", () => {
+    const root = makeRoot();
+    const { lines } = runScenario(root, { codexBody: `printf '\\000\\001\\002\\377\\376' > app/blob.bin\necho '// c' >> ${EDITED}` });
+    const patch = diffBlock(lines) + "\n";
+    assert.ok(patch.includes("GIT binary patch"), "a plain `git diff` would say 'Binary files differ' and lose the bytes");
+    const fresh = `${root}/fresh`;
+    git(root, "-c", "core.autocrlf=false", "clone", "-q", `${root}/origin`, fresh);
+    writeFileSync(`${root}/p.diff`, patch);
+    assert.doesNotThrow(() => git(fresh, "-c", "core.autocrlf=false", "apply", "--check", "--binary", `${root}/p.diff`));
+    git(fresh, "apply", "--binary", `${root}/p.diff`);
+    assert.deepEqual([...readFileSync(`${fresh}/app/blob.bin`)], [0, 1, 2, 255, 254]);
+  });
+
+  test("a text-only change still produces an ordinary unified diff with no binary section", () => {
+    const { lines } = runScenario(makeRoot());
+    assert.ok(diffBlock(lines).includes(`diff --git a/${EDITED} b/${EDITED}`));
+    assert.ok(!diffBlock(lines).includes("GIT binary patch"));
   });
 });

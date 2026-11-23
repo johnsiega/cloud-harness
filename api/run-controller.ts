@@ -48,6 +48,7 @@ export async function executeRun(d: ExecDeps, id: string): Promise<void> {
       let finished = false;
       let tail: string[] = [];
       let firstToken = false;
+      let baseSaved = false;
       let testExit: number | null = null;
       let diff: string | undefined;
 
@@ -56,6 +57,7 @@ export async function executeRun(d: ExecDeps, id: string): Promise<void> {
         since = r.next;
         const events = parser.push(r.lines.map((l) => l + "\n").join(""));
         if (r.done) { events.push(...parser.end()); tail = r.stderrTail; finished = true; }
+        if (parser.baseCommit && !baseSaved) { baseSaved = true; store.update(id, { baseCommit: parser.baseCommit }); }
         for (const e of events) {
           if (e.type === "reasoning" && !firstToken) { firstToken = true; store.update(id, { firstTokenMs: e.ts - handle.submitMs }); }
           if (e.type === "test_result") testExit = e.exitCode;
