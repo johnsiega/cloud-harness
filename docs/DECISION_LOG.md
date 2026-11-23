@@ -33,5 +33,12 @@ Each entry records a choice, the evidence behind it, and what it costs. Dates ar
 - **Why:** `eportfolio` is an unrelated portfolio site that does not contain the patched files. A dedicated repo also lets the PAT be scoped to one repo, so a leaked token cannot touch the portfolio.
 - **Mechanism:** the MicroVM is gone by push time and the token must never enter it, so the control plane applies the captured diff to a fresh full clone at the run's base commit and pushes `harness/<runId>` without force.
 
+## Push mechanics and first real push (Phase 3)
+- **Cross-site protection first.** Binding to 127.0.0.1 did not stop a cross-origin `text/plain` POST from starting a MicroVM (202). Every route now needs a loopback Host, a matching Origin, and JSON on POST, before a write token was ever configured.
+- **Exact base.** The runner emits `base_commit` right after the clone; the push clones the source with `--revision <base>` so the new commit's parent is the base even when `main` has moved on, and applies `git diff --cached --binary` to the index only (no line-ending conversion, binary-safe).
+- **Token handling.** The token travels only in `GIT_CONFIG_*` env on the two git calls that talk to the target (scoped to github.com), never in argv, a URL or a log; global and system git config, credential helpers and every protocol except https are disabled. One push per run, never forced, branch name is server-chosen (`harness/<runId>`).
+- **Evidence (2026-11-23, real GitHub):** run 936e253c pushed to `johnsiega/hospital-queue-harness`: one commit "Cloud harness run 936e253c-…", author "Cloud harness", parent `ea724ce`, one file, +1 -0, exactly the diff shown in the UI; `main` unchanged at `ea724ce`; 0 Actions runs; the portfolio repo untouched; a repeat push answered 409 and created nothing; the token appeared in no log or response.
+- **Token scope check.** A fine-grained token limited to one repo lists 16 public repos but only one of the account's 7 private repos. Its Contents-write permission cannot be read from the API, so the first push is what proved it.
+
 ## Control-plane Node version (Phase 2)
 - The document specifies Node 24; development ran on Node 22.18 (native TypeScript type stripping, Hono 4). `engines` is `>=22.18`.
