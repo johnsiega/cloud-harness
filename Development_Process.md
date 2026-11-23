@@ -108,7 +108,7 @@
 
 # 
 
-# \*\*Key injection\*\*: `OPENROUTER\_API\_KEY` and `GIT\_PUSH\_TOKEN` live in a gitignored `.env` file and are loaded by the control plane only. `GIT\_PUSH\_TOKEN` never enters the sandbox. The control plane applies the captured diff to a fresh clone of the target repo and pushes from there. The sandbox only receives `OPENROUTER\_API\_KEY`, which is a scoped key with a hard credit limit. It arrives in the runner POST body and is set only in the codex child process env; it is never baked into the image or captured in the snapshot. A unit test asserts neither value appears in any log output.
+# \*\*Key injection\*\*: `OPENROUTER\_API\_KEY` and `GIT\_PUSH\_TOKEN` live in a gitignored `.env` file and are loaded by the control plane only. `GIT\_PUSH\_TOKEN` never enters the sandbox. The control plane applies the captured diff to a fresh clone of the target repo and pushes from there. The sandbox only receives `OPENROUTER\_API\_KEY`, which is a scoped key with a hard credit limit. It arrives in the MicroVM run hook payload (`runHookPayload`, max 16 KB; Lambda MicroVMs have no per-run environment variables, and the image must enable the run hook) and is set only in the codex child process env; it is never baked into the image or captured in the snapshot. A unit test asserts neither value appears in any log output.
 
 # \*\*Redaction\*\*: Before any event reaches RunStore or SSE, redact exact secret values and known prefixes (`sk-or-`, `github\_pat\_`, `ghp\_`) by replacing them with `[REDACTED]`. Redaction applies to stdout, stderr, reasoning, and push responses.
 
@@ -188,7 +188,7 @@
 
 # \*\*Test result and diff capture\*\*: The runner executes `npm test; TEST\_EXIT=$?` (no `|| true`, and no `set -e` in force, so a failing test cannot abort before the exit code is captured), and emits a `test\_result` event with `exitCode: $TEST\_EXIT`. The run's final status is `error` if `TEST\_EXIT != 0`, not `done`. The patch is captured with `git add -A && git diff --cached > /tmp/patch.diff` so untracked new files appear in the patch.
 
-# \*\*Stdout transport\*\*: MicroVM stdout and stderr stream to CloudWatch Logs. The control plane subscribes to the log group via a subscription filter and parses JSONL events in real time. If observed lag exceeds 2 seconds, fall back to the runner writing events to a file in S3 that the control plane polls every 500ms. Choose one transport and document it in DECISION\_LOG.
+# \*\*Stdout transport\*\*: MicroVM stdout and stderr stream to CloudWatch Logs. The control plane subscribes to the log group via a subscription filter and parses JSONL events in real time. If observed lag exceeds 2 seconds, fall back to the runner writing events to a file in S3 that the control plane polls every 500ms. Chosen (Phase 0-2, see DECISION\_LOG): the in-VM runner buffers events and the control plane polls its `/events` endpoint over HTTPS every 500 ms. Lambda MicroVMs expose no stdout or exit-code API, so CloudWatch is not on the critical path.
 
 # 
 
@@ -474,7 +474,7 @@
 
 # | Lambda MicroVM API unfamiliar | The AWS documentation and CDK construct are the primary references; the `MicroVMLauncher` interface isolates the API surface |
 
-# | Codex exec auth failure | Inject `OPENROUTER\_API\_KEY` as env var; test in Docker before Phase 1 ends |
+# | Codex exec auth failure | Pass `OPENROUTER\_API\_KEY` in the run hook payload (verified in Phase 0 on a real MicroVM; codex 0.171 needs `wire\_api="responses"`) |
 
 # | 100 concurrent MicroVMs exceed quota | Simulation mode; disclose real tested number (10–20) |
 
