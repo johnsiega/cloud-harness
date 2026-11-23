@@ -1,7 +1,8 @@
 // Control-plane entry point.   AWS_PROFILE=kumpas-harness MICROVM_IMAGE_ARN=<arn> node api/main.ts
 // Secrets (OPENROUTER_API_KEY, optional GIT_PUSH_TOKEN) are read from the environment or a gitignored .env, never from code.
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { createAwsMicrovms } from "./aws-microvms.ts";
 import { createMicrovmLauncher } from "./microvm-launcher.ts";
 import { createRedactor } from "./redact.ts";
@@ -31,6 +32,8 @@ export async function main(): Promise<void> {
   const launcher = createMicrovmLauncher({ aws: createAwsMicrovms({ region }), imageArn, apiKey, region });
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   const app = createApp({ store, redact, startRun: (id) => { void executeRun({ store, launcher, redact, now: Date.now, sleep }, id); } });
+  // Same origin for UI and API (npm run web:build first). Registered after the API routes, so /runs/* always wins.
+  app.use("/*", serveStatic({ root: relative(process.cwd(), join(import.meta.dirname, "..", "dist", "web")).replace(/\\/g, "/") }));
   const srv = await startServer(app, { port: Number(process.env.PORT) || 3000 });
   console.log(`control plane listening on http://${srv.address}:${srv.port}`);
 }
