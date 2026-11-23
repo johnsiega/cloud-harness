@@ -64,7 +64,7 @@
 
 # 5\. React UI renders three panels and a copy-diff button.
 
-# 6\. `POST /runs/:id/push` pushes the sandbox working tree to a branch on the private repo (`johnsiega/eportfolio`) using a scoped fine-grained PAT.
+# 6\. `POST /runs/:id/push` applies the captured diff to a fresh clone at the run's base commit and pushes a `harness/<runId>` branch to the private repo (`johnsiega/hospital-queue-harness`) using a scoped fine-grained PAT. The token stays in the control plane.
 
 # 7\. `POST /simulate?n=100` drives the UI with synthetic events.
 
@@ -104,7 +104,7 @@
 
 # | Repo for clone | Public: `jyvnn/hospital-queue` | No PAT needed for clone |
 
-# | Repo for push | Private: `johnsiega/eportfolio` via fine-grained PAT | Demonstrates real remote delivery |
+# | Repo for push | Private: `johnsiega/hospital-queue-harness`, seeded from `jyvnn/hospital-queue`, via a fine-grained PAT scoped to that repo only | Demonstrates real remote delivery with a minimal blast radius |
 
 # 
 
@@ -438,7 +438,7 @@
 
 # | 2 — Control plane + SSE | 2–3h | `POST /runs` launches MicroVM; `streamSSE` emits parsed events; React renders three panels |
 
-# | 3 — Patch delivery | 1–2h | Diff is copyable; branch push to `johnsiega/eportfolio` works with scoped PAT |
+# | 3 — Patch delivery | 1–2h | Diff is copyable; branch push to `johnsiega/hospital-queue-harness` works with scoped PAT |
 
 # | 4 — Warm start + UI | 1–2h | `sandbox\_resuming` → `sandbox\_ready` animation; both startup metrics displayed |
 
@@ -480,7 +480,7 @@
 
 # | Warm-start target not met | Report actual median/p95; distinguish cold vs warm explicitly |
 
-# | Token leak | Test asserts token absent from all logs; use `git -c http.extraHeader` not URL embedding |
+# | Token leak | Test asserts token absent from all logs; pass the auth header through `GIT\_CONFIG\_\*` env vars, never argv or the URL |
 
 # | Repo too large to clone in sandbox | Use a tiny fork or the `hospital-queue` repo; document size limit |
 

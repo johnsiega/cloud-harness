@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
 import { buildRunRequest } from "../scripts/smoke-test.ts";
+import { checkRequest } from "./request-guard.ts";
 import { formatSse } from "./sse.ts";
 import type { Redactor, RunRecord, RunRequest, RunStore } from "./types.ts";
 
@@ -33,6 +34,17 @@ function validate(body: unknown): Validated {
 export function createApp(d: AppDeps): Hono {
   const app = new Hono();
   const scrub = (r: RunRecord): RunRecord => ({ ...r, events: r.events.map((e) => d.redact.event(e)), ...(r.diff !== undefined ? { diff: d.redact.text(r.diff) } : {}) });
+
+  app.use("*", async (c, next) => {
+    const g = checkRequest({
+      method: c.req.method,
+      host: c.req.header("host") ?? new URL(c.req.url).host,
+      origin: c.req.header("origin"),
+      contentType: c.req.header("content-type"),
+    });
+    if (!g.ok) return c.json({ error: g.error }, g.status);
+    await next();
+  });
 
   app.get("/health", (c) => c.json({ ok: true }));
 
