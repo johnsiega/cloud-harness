@@ -92,7 +92,7 @@
 
 # | Agent | `codex exec` headless, `-c sandbox\_mode=workspace-write -c approval\_policy=never` | `--full-auto` was removed in Codex CLI 0.147; these two config overrides are the supported equivalent |
 
-# | Model routing | OpenRouter → `qwen/qwen3-coder-30b-a3b-instruct` | 262K context, $0.07/M input and $0.28/M output; $8.73 budget is more than sufficient |
+# | Model routing | OpenRouter → `deepseek/deepseek-v4.1-flash` | 1M context, $0.05/M input and $0.20/M output; Phase 0: 5/5 correct diffs vs 2/5 for qwen3-coder-30b; $8.73 budget is more than sufficient |
 
 # | Control plane | Node 24 + Hono | Native `streamSSE` helper for server-sent events with typed routes |
 
@@ -292,7 +292,7 @@
 
 # &#x20; task: string;
 
-# &#x20; model?: string; // default "qwen/qwen3-coder-30b-a3b-instruct"
+# &#x20; model?: string; // default "deepseek/deepseek-v4.1-flash"
 
 # };
 
