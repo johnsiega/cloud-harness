@@ -106,6 +106,16 @@ button.ghost:hover { background: var(--raised); }
 .dl.add::before, .dl.del::before { position: absolute; left: 10px; font-weight: 600; }
 .dl.add::before { content: "+"; color: var(--mint); }
 .dl.del::before { content: "−"; color: var(--coral); }
+/* push control: the one action on the diff, so it gets the accent */
+.pushbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 0 14px 10px; }
+.pushbar button.push { background: transparent; color: var(--amber); border: 1px solid var(--amber); border-radius: 6px; padding: 5px 12px; font: 600 13px var(--sans); cursor: pointer; }
+.pushbar button.push:hover:not(:disabled) { background: rgba(242, 181, 68, 0.12); }
+.pushbar button.push:disabled { color: var(--mute); border-color: var(--line); cursor: progress; }
+.pushbar .target { font: 12.5px var(--mono); color: var(--mute); }
+.pushbar .pushed { display: inline-flex; align-items: center; gap: 8px; color: var(--mint); font-weight: 600; }
+.pushbar .pushed a { color: var(--mint); }
+.pushbar .pushed code { font: 12px var(--mono); color: var(--mute); }
+.push-error { flex-basis: 100%; margin: 0; color: var(--coral); font-size: 13.5px; max-width: 60ch; }
 .plus { color: var(--mint); font-weight: 600; }
 .minus { color: var(--coral); font-weight: 600; }
 
