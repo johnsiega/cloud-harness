@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
 import { buildRunRequest } from "../scripts/smoke-test.ts";
+import type { PushInput, PushResult } from "./patch-delivery.ts";
 import { checkRequest } from "./request-guard.ts";
 import { formatSse } from "./sse.ts";
 import type { Redactor, RunRecord, RunRequest, RunStore } from "./types.ts";
@@ -11,7 +12,11 @@ export interface AppDeps {
   store: RunStore;
   startRun: (id: string) => void;
   redact: Redactor;
+  /** Present only when a push token and target are configured; otherwise the push route answers 503. */
+  push?: { token: string; targetUrl: string; deliver: (input: PushInput) => Promise<PushResult> };
 }
+
+const PUSH_STATUS = { invalid_input: 400, redacted_diff: 422, branch_exists: 409, stale_base: 409, patch_failed: 422, push_failed: 502 } as const;
 
 type Validated = { ok: true; req: RunRequest } | { ok: false; error: string };
 
@@ -57,6 +62,43 @@ export function createApp(d: AppDeps): Hono {
     if (!created.ok) return c.json({ error: "duplicate run in progress", existingId: created.existingId }, 409);
     try { d.startRun(created.record.id); } catch { /* the run reports its own failure; the request still succeeded */ }
     return c.json({ id: created.record.id }, 202);
+  });
+
+  // Tells the UI whether to show the push button. Never includes the token or the full URL.
+  app.get("/config", (c) => {
+    if (!d.push) return c.json({ pushEnabled: false });
+    return c.json({ pushEnabled: true, pushTarget: new URL(d.push.targetUrl).pathname.replace(/^\/|\.git$/g, "") });
+  });
+
+  // Push the finished run's diff to harness/<runId> in the configured private repo. The caller chooses nothing: the branch,
+  // target, base commit and diff all come from the stored run and the server's own config, and a run can be pushed once.
+  const pushing = new Set<string>();
+  app.post("/runs/:id/push", async (c) => {
+    const id = c.req.param("id");
+    const run = d.store.get(id);
+    if (!run) return c.json({ error: "run not found" }, 404);
+    if (!d.push) return c.json({ error: "push is not configured: set GIT_PUSH_TOKEN in .env (optionally PUSH_TARGET_URL) and restart" }, 503);
+    if (run.push) return c.json({ error: "this run was already pushed", branch: run.push.branch, url: run.push.url }, 409);
+    if (pushing.has(id)) return c.json({ error: "a push for this run is already in progress" }, 409);
+    if (run.status !== "done") return c.json({ error: "only a successfully finished run can be pushed" }, 409);
+    if (!run.diff || run.diff.trim() === "" || !run.baseCommit) return c.json({ error: "the run has no diff or base commit to push" }, 400);
+
+    pushing.add(id);
+    let result: PushResult;
+    try {
+      result = await d.push.deliver({ sourceUrl: run.request.repoUrl, targetUrl: d.push.targetUrl, baseCommit: run.baseCommit, diff: run.diff, runId: id, token: d.push.token });
+    } catch (e) {
+      result = { ok: false, reason: "push_failed", error: e instanceof Error ? e.message : String(e), log: "" };
+    } finally {
+      pushing.delete(id);
+    }
+
+    if (!result.ok) {
+      return c.json({ error: d.redact.text(result.error), reason: result.reason, log: d.redact.text(result.log) }, PUSH_STATUS[result.reason] ?? 502);
+    }
+    const url = `${d.push.targetUrl.replace(/\.git$/, "")}/tree/${result.branch}`;
+    d.store.update(id, { push: { branch: result.branch, commit: result.commit, url } });
+    return c.json({ branch: result.branch, commit: result.commit, url });
   });
 
   app.get("/runs/:id", (c) => {

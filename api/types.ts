@@ -26,6 +26,7 @@ export type RunRecord = {
   events: TraceEvent[];
   diff?: string;
   microvmId?: string;
+  push?: { branch: string; commit: string; url: string }; // set once the diff was pushed
   baseCommit?: string; // 40-hex commit the runner cloned; the push applies the diff on top of exactly this
   createdAt: number;
   startupMs?: number;
@@ -43,7 +44,7 @@ export interface RunStore {
   create(req: RunRequest): CreateResult;
   get(id: string): RunRecord | undefined;
   append(id: string, e: TraceEvent): void;
-  update(id: string, patch: Partial<Pick<RunRecord, "status" | "diff" | "microvmId" | "baseCommit" | "startupMs" | "firstTokenMs">>): void;
+  update(id: string, patch: Partial<Pick<RunRecord, "status" | "diff" | "microvmId" | "baseCommit" | "push" | "startupMs" | "firstTokenMs">>): void;
   subscribe(id: string, fn: (e: TraceEvent) => void): () => void;
   sweep(): number;
 }

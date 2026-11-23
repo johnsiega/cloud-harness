@@ -5,6 +5,7 @@ import { join, relative } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createAwsMicrovms } from "./aws-microvms.ts";
 import { createMicrovmLauncher } from "./microvm-launcher.ts";
+import { createPatchDelivery } from "./patch-delivery.ts";
 import { createRedactor } from "./redact.ts";
 import { executeRun } from "./run-controller.ts";
 import { createRunStore } from "./run-store.ts";
@@ -31,7 +32,12 @@ export async function main(): Promise<void> {
   const redact = createRedactor([apiKey, process.env.GIT_PUSH_TOKEN ?? ""]);
   const launcher = createMicrovmLauncher({ aws: createAwsMicrovms({ region }), imageArn, apiKey, region });
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-  const app = createApp({ store, redact, startRun: (id) => { void executeRun({ store, launcher, redact, now: Date.now, sleep }, id); } });
+  // Push is optional: without GIT_PUSH_TOKEN the route answers 503 and the UI hides the button. The token stays in this process.
+  const pushToken = process.env.GIT_PUSH_TOKEN;
+  const pushTarget = process.env.PUSH_TARGET_URL ?? "https://github.com/johnsiega/hospital-queue-harness";
+  const push = pushToken ? { token: pushToken, targetUrl: pushTarget, deliver: createPatchDelivery({ redact }).pushBranch } : undefined;
+  console.log(push ? `push enabled: harness/<runId> branches go to ${pushTarget}` : "push disabled (set GIT_PUSH_TOKEN in .env to enable)");
+  const app = createApp({ store, redact, push, startRun: (id) => { void executeRun({ store, launcher, redact, now: Date.now, sleep }, id); } });
   // Same origin for UI and API (npm run web:build first). Registered after the API routes, so /runs/* always wins.
   app.use("/*", serveStatic({ root: relative(process.cwd(), join(import.meta.dirname, "..", "dist", "web")).replace(/\\/g, "/") }));
   const srv = await startServer(app, { port: Number(process.env.PORT) || 3000 });
