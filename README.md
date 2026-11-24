@@ -2,6 +2,14 @@
 
 **Watch an AI coding agent work inside a disposable cloud computer.**
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Node.js 22.18+](https://img.shields.io/badge/node-22.18%2B-339933)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![AWS Lambda MicroVMs](https://img.shields.io/badge/AWS-Lambda%20MicroVMs-FF9900?logo=awslambda&logoColor=white)
+![Built test-first](https://img.shields.io/badge/built-test--first-success)
+
+[What it is](#cloud-harness) · [Use cases](#use-cases) · [Try it](#try-it) · [How it works](#how-it-works) · [Run it yourself](#run-it-yourself) · [Using this project](#using-this-project) · [Contributing](#contributing)
+
 Cloud harness takes a public GitHub repository and a task written in plain words, such as "add a comment above this method". It starts a fresh, isolated virtual machine on AWS, lets an AI coding agent clone the repo, change the code, and run the project's tests, then shows you the result as a diff. You watch it happen live in three panels: what the agent is thinking, what it runs, and what changed.
 
 If you like the change, one button pushes it to a new branch in a private repository. Nothing touches your own machine, and nothing is merged for you.
@@ -23,6 +31,19 @@ You need your own AWS account and an OpenRouter key; see [Run it yourself](#run-
 3. Watch the progress rail: **Sandbox ready**, **Agent**, **Tests**, **Patch**. The large number is how long the virtual machine took to become ready.
 4. Read along. **Reasoning** shows the agent's messages, **Terminal** shows the commands it ran, and **Diff** shows the change line by line.
 5. Press **Copy diff**, or **Push to branch** if you set up a push target. A pushed run shows a link to its branch. Each run can be pushed once.
+
+## Use cases
+
+Cloud harness is a tool you run yourself, against your own AWS account. Here is what people could use it for. Some of these need a small change, and each says so.
+
+| Use case | How |
+|---|---|
+| **Try an AI agent on code you don't trust yet.** The agent works in a throwaway VM, so a bad or malicious change never touches your machine. You read the diff before anything else happens. | Point it at any public repo, write the task, press **Run task**. |
+| **Compare coding models on the same task.** Find out which cheap model actually finishes the job, how fast, and at what token cost, with a pass rate over several runs. | `SMOKE_RUNS=5 SMOKE_MODEL=<model> npm run smoke` prints pass rate, timing and token totals, and `SMOKE_OUT_DIR` saves each run's events and diff. Today it is scored against the demo task; to score another task, change `EDITED_FILE` in `scripts/smoke-test.ts`. |
+| **Measure how fast a MicroVM starts.** The "Sandbox ready" number is submit-to-first-healthy-response on your account and region. | Run it a few times and read the rail. Warm-start (suspend and resume) measurements are planned in [the Phase 4 plan](docs/PHASE_4_PLAN.md). |
+| **Teach or demo how an agent works.** Reasoning, commands and the patch appear live in three panels, which makes it easy to talk through what the agent did and why. | Run the control plane and share your screen. |
+| **Hand a reviewer a patch branch.** The agent never gets push rights. After you approve the diff, the control plane pushes it to a new branch of a private repo for someone else to review. | Set up the optional push target below. |
+| **Learn from the code.** It is a small, test-first TypeScript project: server-sent events, secret redaction, a request guard against cross-site calls, safe `git` use, and a Firecracker sandbox. | Start with [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md), then read the tests next to each module. |
 
 ## How it works
 
@@ -139,9 +160,31 @@ Restart the control plane. Without a token the button is hidden.
 
 TypeScript (run directly by Node), Hono, React 19, Vite, AWS Lambda MicroVMs, the AWS SDK for JavaScript, Codex CLI, OpenRouter, and the Node test runner. The demo target is the public Laravel project [`jyvnn/hospital-queue`](https://github.com/jyvnn/hospital-queue).
 
+## Using this project
+
+Cloud harness is open source under the [MIT License](LICENSE). In plain words: **you don't need to ask me for permission.** You can use it, copy it, change it, and build on it, including for work, as long as you keep the copyright notice and license text in any copy.
+
+A few things to know before you do:
+
+- **You bring everything.** Your own AWS account, OpenRouter key and optional GitHub token. There is no hosted version, and I don't run anything for you.
+- **You pay for what you run.** Model calls and MicroVM time are charged to your accounts. Set a spending limit on the OpenRouter key and watch your AWS bill.
+- **It runs AI-written code with open internet access.** That is safe only inside the throwaway VM. Don't weaken the safety choices above, and use scoped, short-lived credentials.
+- **No warranty.** It is a prototype provided as is. Read the diff before you trust a change.
+- **Credit is appreciated, not required.** If you build on it, a link back is kind. It isn't a license condition.
+
+If you want to do something the license doesn't cover, or you have a question, open an issue.
+
+## Contributing
+
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: the project is built test-first and never commits secrets. To report a security problem privately, see [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE) © 2026 John Cedrick P. Siega
+
 ## Author
 
-John Cedrick P. Siega
+[John Cedrick P. Siega](https://github.com/johnsiega)
 
 ## Development checks
 

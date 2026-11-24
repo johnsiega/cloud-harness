@@ -1,4 +1,4 @@
-// Control-plane entry point.   AWS_PROFILE=kumpas-harness MICROVM_IMAGE_ARN=<arn> node api/main.ts
+// Control-plane entry point.   AWS_PROFILE=<your-profile> MICROVM_IMAGE_ARN=<arn> node api/main.ts
 // Secrets (OPENROUTER_API_KEY, optional GIT_PUSH_TOKEN) are read from the environment or a gitignored .env, never from code.
 import { existsSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";

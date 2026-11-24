@@ -1,5 +1,5 @@
 // @integration: ONE real Lambda MicroVM through the real control plane (HTTP -> SSE). Costs a few cents; skipped by default.
-//   RUN_INTEGRATION=1 AWS_PROFILE=kumpas-harness MICROVM_IMAGE_ARN=<arn> node --test tests/integration/end-to-end.test.ts
+//   RUN_INTEGRATION=1 AWS_PROFILE=<your-profile> MICROVM_IMAGE_ARN=<arn> node --test tests/integration/end-to-end.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createAwsMicrovms } from "../../api/aws-microvms.ts";

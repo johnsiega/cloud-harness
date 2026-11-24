@@ -1,6 +1,6 @@
 # Phase 4 plan: warm start
 
-Status: planned, not started. Written on Opus 5.5 for a Sonnet 5.5 build. Base commit: `a983f00`.
+Status: planned, not started. Written for a build in a later session.
 
 ## Goal
 
@@ -18,7 +18,7 @@ The animation and both metrics already exist. What is missing:
 |---|---|
 | `suspend-microvm` goes through `SUSPENDING` to `SUSPENDED`; `resume-microvm` requires `SUSPENDED` | AWS CLI help |
 | SDK has `SuspendMicrovmCommand`, `ResumeMicrovmCommand`, `GetMicrovmCommand`, `ListMicrovmsCommand` | Checked in `node_modules` |
-| `lambda:*Microvm*` covers suspend and resume for `kumpas-harness` | Existing IAM policy; no IAM change or root login needed |
+| `lambda:*Microvm*` covers suspend and resume for the harness IAM user | Existing IAM policy; no IAM change or root login needed |
 | `maximumDurationInSeconds` includes suspended time; range 1 to 28,800 | AWS docs |
 | `SUSPENDED` VMs count against the account memory quota | AWS docs |
 | Current runs use a 1,800 s cap and no idle policy | Real VM record |
@@ -74,7 +74,7 @@ measureCycle(deps, opts): Promise<CycleResult>
 
 Tests: percentile values, state waits, timeouts, invalid transitions, terminate on every failure path, endpoint re-read, fresh token, no key in any AWS input.
 
-**Step 3. Real measurement [go].** On image `hq-smoke-1795435760936`:
+**Step 3. Real measurement [go].** On image the current image (`MICROVM_IMAGE_ARN`):
 
 - 20 cycles with a 10 s dwell.
 - 5 cycles with a 15-minute dwell, since a pool VM waits far longer than 10 s.

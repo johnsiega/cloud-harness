@@ -29,8 +29,8 @@ Each entry records a choice, the evidence behind it, and what it costs. Dates ar
 - A run is `error` if the tests exit non-zero, Codex exits non-zero, or the diff is empty or missing. `done.exitCode` is the test exit code if non-zero, otherwise 1 for any other failure.
 
 ## Push target: a dedicated private repo (Phase 3)
-- **Decision:** branches go to `johnsiega/hospital-queue-harness`, seeded from `jyvnn/hospital-queue`, replacing the original target `johnsiega/eportfolio`.
-- **Why:** `eportfolio` is an unrelated portfolio site that does not contain the patched files. A dedicated repo also lets the PAT be scoped to one repo, so a leaked token cannot touch the portfolio.
+- **Decision:** branches go to `johnsiega/hospital-queue-harness`, seeded from `jyvnn/hospital-queue`, replacing an earlier candidate repo.
+- **Why:** The earlier candidate was an unrelated repo that does not contain the patched files. A dedicated repo also lets the PAT be scoped to one repo, so a leaked token cannot touch the portfolio.
 - **Mechanism:** the MicroVM is gone by push time and the token must never enter it, so the control plane applies the captured diff to a fresh full clone at the run's base commit and pushes `harness/<runId>` without force.
 
 ## Push mechanics and first real push (Phase 3)

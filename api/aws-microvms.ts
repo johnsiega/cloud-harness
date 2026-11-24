@@ -1,5 +1,5 @@
 // Thin real AWS layer behind the AwsMicrovms seam. No logic worth unit-testing: it is exercised by the integration test.
-// Credentials come from the SDK default chain (set AWS_PROFILE=kumpas-harness); never pass keys in code.
+// Credentials come from the SDK default chain (set AWS_PROFILE=<your-profile>); never pass keys in code.
 import { CreateMicrovmAuthTokenCommand, LambdaMicrovmsClient, RunMicrovmCommand, TerminateMicrovmCommand } from "@aws-sdk/client-lambda-microvms";
 import type { AwsMicrovms } from "./types.ts";
 
