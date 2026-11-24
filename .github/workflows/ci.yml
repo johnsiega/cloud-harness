@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The tests need no AWS account, API keys or tokens, so the workflow gets no secrets and read-only access.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: node --version && git --version
+      # Real-git tests need a full git and an identity-free environment; nothing here touches the network.
+      - run: npm ci
+      - run: npm test
+      - name: Build the web UI
+        run: npm run web:build
