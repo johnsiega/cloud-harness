@@ -33,6 +33,7 @@ export interface RunRequest {
   ingressNetworkConnectors: string[];
   egressNetworkConnectors: string[];
   maximumDurationInSeconds: number;
+  idlePolicy?: { autoResumeEnabled: boolean; maxIdleDurationSeconds: number; suspendedDurationSeconds: number };
 }
 
 export interface RunnerPost {

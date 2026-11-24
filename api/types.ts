@@ -65,6 +65,10 @@ export interface AwsMicrovms {
   run(input: MicrovmRunInput): Promise<{ microvmId: string; endpoint: string }>;
   authToken(microvmId: string): Promise<string>;
   terminate(microvmId: string): Promise<void>;
+  suspend(microvmId: string): Promise<void>;
+  resume(microvmId: string): Promise<void>;
+  describe(microvmId: string): Promise<{ state: string; endpoint?: string }>;
+  listByImage(imageArn: string): Promise<{ microvmId: string; state: string }[]>;
 }
 
 export type FetchLike = (
