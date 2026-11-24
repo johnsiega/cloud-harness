@@ -1,0 +1,220 @@
+{
+  "measuredAt": "2026-11-24T03:05:51.244Z",
+  "imageArn": "arn:aws:lambda:us-east-1:<account-id>:microvm-image:hq-smoke-1795435760936",
+  "short": {
+    "dwellMs": 10000,
+    "cycles": [
+      {
+        "coldMs": 1837,
+        "suspendMs": 904,
+        "warmMs": 1798,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1513,
+        "suspendMs": 877,
+        "warmMs": 1786,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2049,
+        "suspendMs": 897,
+        "warmMs": 1822,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1267,
+        "suspendMs": 863,
+        "warmMs": 1783,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1389,
+        "suspendMs": 918,
+        "warmMs": 1790,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2102,
+        "suspendMs": 874,
+        "warmMs": 1843,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1303,
+        "suspendMs": 877,
+        "warmMs": 1785,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2321,
+        "suspendMs": 884,
+        "warmMs": 1777,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1264,
+        "suspendMs": 879,
+        "warmMs": 1821,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2036,
+        "suspendMs": 875,
+        "warmMs": 1804,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2037,
+        "suspendMs": 870,
+        "warmMs": 1818,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1377,
+        "suspendMs": 868,
+        "warmMs": 1814,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2400,
+        "suspendMs": 875,
+        "warmMs": 1828,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1256,
+        "suspendMs": 894,
+        "warmMs": 1801,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1274,
+        "suspendMs": 528,
+        "warmMs": 2315,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1494,
+        "suspendMs": 889,
+        "warmMs": 1851,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2042,
+        "suspendMs": 901,
+        "warmMs": 1785,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2014,
+        "suspendMs": 892,
+        "warmMs": 1794,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2130,
+        "suspendMs": 867,
+        "warmMs": 1848,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2083,
+        "suspendMs": 889,
+        "warmMs": 1804,
+        "endpointChanged": false
+      }
+    ],
+    "failures": [],
+    "cold": {
+      "n": 20,
+      "min": 1256,
+      "median": 1925.5,
+      "p95": 2321,
+      "max": 2400
+    },
+    "warm": {
+      "n": 20,
+      "min": 1777,
+      "median": 1804,
+      "p95": 1851,
+      "max": 2315
+    },
+    "suspend": {
+      "n": 20,
+      "min": 528,
+      "median": 878,
+      "p95": 904,
+      "max": 918
+    }
+  },
+  "long": {
+    "dwellMs": 900000,
+    "cycles": [
+      {
+        "coldMs": 1980,
+        "suspendMs": 892,
+        "warmMs": 1852,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1324,
+        "suspendMs": 902,
+        "warmMs": 1831,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 1993,
+        "suspendMs": 875,
+        "warmMs": 1853,
+        "endpointChanged": false
+      },
+      {
+        "coldMs": 2126,
+        "suspendMs": 873,
+        "warmMs": 2245,
+        "endpointChanged": false
+      }
+    ],
+    "failures": [
+      {
+        "cycle": 5,
+        "error": "The base maximum allocated memory limit has been reached for this account."
+      }
+    ],
+    "stoppedEarly": "quota exceeded: The base maximum allocated memory limit has been reached for this account.",
+    "cold": {
+      "n": 4,
+      "min": 1324,
+      "median": 1986.5,
+      "p95": 2126,
+      "max": 2126
+    },
+    "warm": {
+      "n": 4,
+      "min": 1831,
+      "median": 1852.5,
+      "p95": 2245,
+      "max": 2245
+    },
+    "suspend": {
+      "n": 4,
+      "min": 873,
+      "median": 883.5,
+      "p95": 902,
+      "max": 902
+    }
+  },
+  "gate": {
+    "pass": false,
+    "reasons": [
+      "10 s dwell: warm median 1804 ms is not at least 30% faster than cold 1926 ms",
+      "10 s dwell: warm median is only 122 ms faster than cold, under the 500 ms minimum",
+      "900 s dwell: 1 cycle(s) failed",
+      "900 s dwell: stopped early (quota exceeded: The base maximum allocated memory limit has been reached for this account.)",
+      "900 s dwell: warm median 1853 ms is not at least 30% faster than cold 1987 ms",
+      "900 s dwell: warm median is only 134 ms faster than cold, under the 500 ms minimum",
+      "900 s dwell: warm p95 2245 ms is worse than cold p95 2126 ms"
+    ]
+  }
+}

@@ -7,7 +7,7 @@ type Step = { key: string; label: string; tone: Tone; detail?: string; hero?: st
 export function railSteps(v: RunView): Step[] {
   const finished = v.phase === "done" || v.phase === "error";
   const sandbox: Step = v.startupMs !== undefined
-    ? { key: "sandbox", label: "Sandbox ready", tone: "ok", hero: formatMs(v.startupMs), detail: "snapshot resume" }
+    ? { key: "sandbox", label: "Sandbox ready", tone: "ok", hero: formatMs(v.startupMs), detail: "started from image" }
     : { key: "sandbox", label: "Sandbox", tone: v.phase === "resuming" ? "active" : finished ? "fail" : "pending", detail: v.phase === "resuming" ? "resuming snapshot" : undefined };
 
   const agentStarted = v.phase === "ready" || v.phase === "running" || finished;

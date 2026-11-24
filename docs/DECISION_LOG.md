@@ -40,5 +40,21 @@ Each entry records a choice, the evidence behind it, and what it costs. Dates ar
 - **Evidence (2026-11-23, real GitHub):** run 936e253c pushed to `johnsiega/hospital-queue-harness`: one commit "Cloud harness run 936e253c-…", author "Cloud harness", parent `ea724ce`, one file, +1 -0, exactly the diff shown in the UI; `main` unchanged at `ea724ce`; 0 Actions runs; the portfolio repo untouched; a repeat push answered 409 and created nothing; the token appeared in no log or response.
 - **Token scope check.** A fine-grained token limited to one repo lists 16 public repos but only one of the account's 7 private repos. Its Contents-write permission cannot be read from the API, so the first push is what proved it.
 
+## Warm start: measured, no warm pool (Phase 4)
+- **Decision:** do not build the pre-warmed (suspended) MicroVM pool. Every run starts from the image.
+- **Method.** `scripts/measure-startup.ts` on fresh VMs, one cycle each: launch, wait for the first healthy `/health` (cold), suspend, wait, resume, wait for `RUNNING`, fresh token, first healthy `/health` (warm). Same 50 ms probe for both. Cold is measured from the `run-microvm` call and includes creating the access token; warm from the `resume-microvm` call and includes the wait for `RUNNING` and a fresh token. Measurement VMs got an empty payload (no key). Measured from a Windows machine over the public internet to `us-east-1`, with the SDK, on 2026-11-24.
+- **Results.**
+
+| Sample | n | Cold median / p95 | Warm median / p95 | Suspend median |
+|---|---|---|---|---|
+| 10 s suspended, one at a time | 20 | 1,926 / 2,321 ms | 1,804 / 1,851 ms | 878 ms |
+| 15 min suspended, started 3 min apart | 4 | 1,987 / 2,126 ms | 1,853 / 2,245 ms | 884 ms |
+
+- **Reading it.** Resume costs about 1.8 s no matter what, with a very tight spread (the 10 s sample's p95 is 1.85 s, with one 2.3 s outlier). A cold start from the image ranges from 1.3 to 2.4 s and is often faster. Warm was 122 ms faster at the median in the 10 s sample and 134 ms in the 15 min sample, against a pre-agreed bar of at least 30% and at least 500 ms on both samples. The gate failed on both, so the pool is not worth its cost, complexity and the key-in-memory risk.
+- **Caveats.** The 15-minute sample has n=4, because the fifth VM could not launch (below), and a p95 over 4 or 20 samples is the second-largest or largest value, not a stable tail. Both samples ran from one machine. The long cycles ran with staggered concurrency, a code path with no unit test. "Ready" excludes repo clone and model latency, which dominate a real run.
+- **Facts learned.** Resume works with the image's `/resume` hook disabled. The endpoint URL stayed the same across every suspend (24 of 24). The default account memory limit was hit when a fifth VM launched while four were suspended, so suspended VMs count against the quota, as the docs say. That limit also means a real 100-VM run is not possible on a default account.
+- **Not measured.** Cost of suspended VMs and snapshots (pricing figures from AWS pages were unverified), and a pre-cloned pool, which would help end-to-end time and not this metric.
+- **Raw data:** `docs/measurements/startup-cold-warm.json`.
+
 ## Control-plane Node version (Phase 2)
 - The document specifies Node 24; development ran on Node 22.18 (native TypeScript type stripping, Hono 4). `engines` is `>=22.18`.

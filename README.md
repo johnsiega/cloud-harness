@@ -41,7 +41,7 @@ Cloud harness is a tool you run yourself, against your own AWS account. Here is 
 |---|---|
 | **Try an AI agent on code you don't trust yet.** The agent works in a throwaway VM, so a bad or malicious change never touches your machine. You read the diff before anything else happens. | Point it at any public repo, write the task, press **Run task**. |
 | **Compare coding models on the same task.** Find out which cheap model actually finishes the job, how fast, and at what token cost, with a pass rate over several runs. | `SMOKE_RUNS=5 SMOKE_MODEL=<model> npm run smoke` prints pass rate, timing and token totals, and `SMOKE_OUT_DIR` saves each run's events and diff. Today it is scored against the demo task; to score another task, change `EDITED_FILE` in `scripts/smoke-test.ts`. |
-| **Measure how fast a MicroVM starts.** The "Sandbox ready" number is submit-to-first-healthy-response on your account and region. | Run it a few times and read the rail. Warm-start (suspend and resume) measurements are planned in [the Phase 4 plan](docs/PHASE_4_PLAN.md). |
+| **Measure how fast a MicroVM starts.** The "Sandbox ready" number is submit-to-first-healthy-response on your account and region. | Run it a few times and read the rail, or run `node scripts/measure-startup.ts` for cold and warm cycles with median and p95 (it spends a little AWS money; see [the results](docs/DECISION_LOG.md)). |
 | **Teach or demo how an agent works.** Reasoning, commands and the patch appear live in three panels, which makes it easy to talk through what the agent did and why. | Run the control plane and share your screen. |
 | **Hand a reviewer a patch branch.** The agent never gets push rights. After you approve the diff, the control plane pushes it to a new branch of a private repo for someone else to review. | Set up the optional push target below. |
 | **Learn from the code.** It is a small, test-first TypeScript project: server-sent events, secret redaction, a request guard against cross-site calls, safe `git` use, and a Firecracker sandbox. | Start with [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md), then read the tests next to each module. |
@@ -68,7 +68,8 @@ Small samples on one machine in `us-east-1`, so treat these as indications, not 
 
 | What | Result |
 |---|---|
-| Time until the VM is ready (submit to first healthy response) | about 1.3 to 4.5 s, typically around 3.7 s |
+| Time until the VM is ready, started from the image (call to first healthy response) | 20 measured runs: median 1.9 s, p95 2.3 s, range 1.3 to 2.4 s. The page shows about 1.3 to 3 s, a little higher because it polls every 0.25 s and includes creating the access token. |
+| Time until a suspended VM is ready again (resume call to first healthy response) | 20 measured runs: median 1.8 s, p95 1.9 s. **Not faster than a cold start**, so there is no warm pool. |
 | Time until the agent's first message | about 7 to 15 s |
 | A whole run (clone, edit, install, tests, diff) | typically 15 to 50 s |
 | Model cost | about a fifth of a cent per run (AWS compute cost not yet measured) |
@@ -146,8 +147,8 @@ Restart the control plane. Without a token the button is hidden.
 - This is a prototype. It runs on your own machine against your own AWS account, and there is no hosted version, login or database.
 - Only **public** GitHub repositories can be cloned, and the sandbox has open internet access.
 - A task changes code and runs tests. It does not judge whether the change is good, so read the diff.
-- Warm starts (suspending and resuming a VM) have not been measured yet. Every number above is a start from the image. See [the Phase 4 plan](docs/PHASE_4_PLAN.md).
-- The planned 100-run simulation has not been built.
+- Warm starts were measured and are **not** faster: resuming a suspended VM took about 1.8 s against about 1.9 s for a cold start from the image, so every run starts cold. The "ready" numbers exclude cloning the repo and model time. Details are in [the decision log](docs/DECISION_LOG.md).
+- With default account limits, launching a fifth MicroVM while four were suspended hit the account's memory limit. A real run of 100 VMs at once is not possible on a default account, and the planned 100-run simulation has not been built.
 - The "first reasoning token" metric isn't available, because the agent's output stream has no reasoning items. We report the first agent message instead.
 - It was built and tested on Windows with Git Bash and PowerShell.
 
@@ -155,7 +156,8 @@ Restart the control plane. Without a token the button is hidden.
 
 - [`Development_Process.md`](Development_Process.md): the full plan, with phases, the test-first rules and the completion checklist.
 - [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md): each design choice, the evidence behind it, and what it costs.
-- [`docs/PHASE_4_PLAN.md`](docs/PHASE_4_PLAN.md): the plan for measuring and using warm starts.
+- [`docs/PHASE_4_PLAN.md`](docs/PHASE_4_PLAN.md): the plan for measuring warm starts, and how it ended.
+- [`docs/measurements/startup-cold-warm.json`](docs/measurements/startup-cold-warm.json): the raw cold and warm measurements.
 
 ## Built with
 

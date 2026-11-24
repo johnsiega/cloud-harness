@@ -1,6 +1,6 @@
 # Phase 4 plan: warm start
 
-Status: planned, not started. Written for a build in a later session.
+Status: **finished.** Part A (measurement) is built and was run for real; the decision gate failed, so Part B (the warm pool) was deliberately not built. Results and caveats are in `docs/DECISION_LOG.md` ("Warm start: measured, no warm pool") and `docs/measurements/startup-cold-warm.json`. The one follow-through that did ship is Step 7's label fix: the UI no longer says "snapshot resume" on cold starts.
 
 ## Goal
 
