@@ -5,7 +5,7 @@ Thanks for taking a look. Issues and pull requests are welcome, and no separate 
 ## Before you open a pull request
 
 1. Open an issue first for anything bigger than a small fix, so we can agree on the approach.
-2. Run the tests. They need no AWS account or keys.
+2. Run the tests. They need no AWS account or keys, and CI runs the same command on Ubuntu and Windows.
 
    ```
    npm install
@@ -27,6 +27,6 @@ Thanks for taking a look. Issues and pull requests are welcome, and no separate 
 
 ## Good places to start
 
-- A CI workflow. The tests have only been run on Windows so far, so this may need small fixes for Linux.
+- Testing on macOS. CI covers Ubuntu and Windows only.
 - Warm-start measurements. See [`docs/PHASE_4_PLAN.md`](docs/PHASE_4_PLAN.md).
 - Making the model-comparison runner score any task, not only the demo task.

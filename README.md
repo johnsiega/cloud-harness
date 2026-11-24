@@ -2,6 +2,7 @@
 
 **Watch an AI coding agent work inside a disposable cloud computer.**
 
+[![CI](https://github.com/johnsiega/cloud-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/johnsiega/cloud-harness/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node.js 22.18+](https://img.shields.io/badge/node-22.18%2B-339933)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
@@ -187,6 +188,8 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fi
 [John Cedrick P. Siega](https://github.com/johnsiega)
 
 ## Development checks
+
+CI runs the tests and the UI build on Ubuntu and Windows for every push and pull request. It uses no secrets and spends no AWS money.
 
 ```powershell
 npm test                  # unit tests, real-git push tests, runner tests (296 pass, 1 skipped)
