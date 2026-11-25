@@ -5,6 +5,8 @@ import { serve } from "@hono/node-server";
 import { buildRunRequest } from "../scripts/smoke-test.ts";
 import type { PushInput, PushResult } from "./patch-delivery.ts";
 import { checkRequest } from "./request-guard.ts";
+import { registerSimulation } from "./simulate-routes.ts";
+import type { SimDeps } from "./simulate-routes.ts";
 import { formatSse } from "./sse.ts";
 import type { Redactor, RunRecord, RunRequest, RunStore } from "./types.ts";
 
@@ -13,6 +15,8 @@ export interface AppDeps {
   startRun: (id: string) => void;
   redact: Redactor;
   /** Present only when a push token and target are configured; otherwise the push route answers 503. */
+  /** Test seam for the simulation routes; defaults to real timers. */
+  sim?: SimDeps;
   push?: { token: string; targetUrl: string; deliver: (input: PushInput) => Promise<PushResult> };
 }
 
@@ -52,6 +56,8 @@ export function createApp(d: AppDeps): Hono {
   });
 
   app.get("/health", (c) => c.json({ ok: true }));
+
+  registerSimulation(app, d.sim);
 
   app.post("/runs", async (c) => {
     let body: unknown;

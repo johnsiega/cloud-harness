@@ -6,7 +6,7 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "test": "node --test scripts/smoke-test.test.ts scripts/monitoring.test.ts scripts/runner/server.test.ts tests/unit/*.test.ts tests/integration/*.test.ts",
+    "test": "node --test scripts/smoke-test.test.ts scripts/monitoring.test.ts scripts/runner/server.test.ts tests/unit/*.test.ts tests/simulation/*.test.ts tests/integration/*.test.ts",
     "test:unit": "node --test tests/unit/*.test.ts",
     "smoke": "node scripts/smoke-test.ts",
     "start": "node api/main.ts",
