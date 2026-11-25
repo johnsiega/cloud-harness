@@ -5,7 +5,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, delimiter } from "node:path";
+import { join, delimiter, dirname } from "node:path";
 import { spawnSync, execFileSync } from "node:child_process";
 import * as S from "./smoke-test.ts";
 
@@ -24,13 +24,20 @@ function makeRoot(): string {
   return fwd(mkdtempSync(join(tmpdir(), "smoke-")));
 }
 
-function makeOrigin(root: string): string {
+// What makes the fake repo a Laravel project for test detection. makeOrigin(root, {}) is a repo with no test evidence.
+const LARAVEL_FILES: Record<string, string> = { "composer.json": "{}\n", artisan: "<?php\n" };
+
+function makeOrigin(root: string, extra: Record<string, string> = LARAVEL_FILES): string {
   const dir = `${root}/origin`;
   mkdirSync(`${dir}/app/Services`, { recursive: true });
   git(dir, "init", "-q", "-b", "main");
   git(dir, "config", "user.email", "t@example.com");
   git(dir, "config", "user.name", "t");
   writeFileSync(`${dir}/${EDITED}`, "<?php\nclass QueueEventLog {}\n");
+  for (const [p, body] of Object.entries(extra)) {
+    mkdirSync(dirname(`${dir}/${p}`), { recursive: true });
+    writeFileSync(`${dir}/${p}`, body);
+  }
   git(dir, "add", "-A");
   git(dir, "commit", "-q", "-m", "init");
   return dir;
@@ -45,6 +52,15 @@ interface Scenario {
   testCmd?: string;
   appKey?: string;
   repoUrl?: string;
+  origin?: Record<string, string>; // files in the fake repo; default is a Laravel project
+  npmCiExit?: number;
+  npmInstallExit?: number;
+  npmTestExit?: number;
+  pipExit?: number;
+  pytestExit?: number;
+  installSleep?: number; // seconds `npm ci` sleeps (to test the install timeout)
+  installTimeout?: number; // TEST_INSTALL_TIMEOUT in seconds
+  detectBody?: string; // replaces detect-tests.mjs (to test a crashing detector)
 }
 
 function runScenario(root: string, o: Scenario = {}) {
@@ -65,23 +81,44 @@ function runScenario(root: string, o: Scenario = {}) {
   );
   stub(`${bin}/composer`, `echo "composer $*" >> "$ROOT/calls.log"\nexit ${o.composerExit ?? 0}`);
   stub(`${bin}/php`, `echo "php $*" >> "$ROOT/calls.log"\necho "$APP_KEY" >> "$ROOT/appkey.log"\nexit ${o.phpExit ?? 0}`);
+  stub(
+    `${bin}/npm`,
+    [
+      `echo "npm $*" >> "$ROOT/calls.log"`,
+      `case "$1" in`,
+      `  ci) mkdir -p node_modules && echo x > node_modules/junk.js; sleep ${o.installSleep ?? 0}; exit ${o.npmCiExit ?? 0};;`,
+      `  install) exit ${o.npmInstallExit ?? 0};;`,
+      `  test) echo TESTOUT; echo cache > .test-cache; exit ${o.npmTestExit ?? 0};;`,
+      `esac`,
+    ].join("\n"),
+  );
+  stub(
+    `${bin}/python3`,
+    [`echo "python3 $*" >> "$ROOT/calls.log"`, `if [ "$2" = pip ]; then exit ${o.pipExit ?? 0}; fi`, `mkdir -p .pytest_cache && exit ${o.pytestExit ?? 0}`].join("\n"),
+  );
   const scriptPath = `${root}/run-task.sh`;
   writeFileSync(scriptPath, S.buildRunnerScript());
+  // The script finds the detector next to itself (/opt/runner in the image). Read the source file, not buildImagePackage(),
+  // so a missing package entry fails the package test instead of crashing every scenario.
+  writeFileSync(`${root}/detect-tests.mjs`, o.detectBody ?? readFileSync(join(import.meta.dirname, "runner", "detect-tests.mjs"), "utf8"));
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     PATH: `${bin}${delimiter}${process.env.PATH}`,
     ROOT: root,
-    REPO_URL: o.repoUrl ?? makeOrigin(root),
+    REPO_URL: o.repoUrl ?? makeOrigin(root, o.origin ?? LARAVEL_FILES),
     TASK: o.task ?? "add a comment to QueueEventLog",
     WORKDIR: `${root}/work`,
     OPENROUTER_API_KEY: KEY,
     MODEL,
   };
   if (o.testCmd) env.TEST_CMD = o.testCmd;
+  if (o.installTimeout !== undefined) env.TEST_INSTALL_TIMEOUT = String(o.installTimeout);
   delete env.APP_KEY;
   if (o.appKey) env.APP_KEY = o.appKey;
   // `-e` on purpose: the script must neutralise errexit itself (set +e) to capture TEST_EXIT.
+  const t0 = Date.now();
   const r = spawnSync(BASH, ["-e", scriptPath], { env, encoding: "utf8", cwd: root });
+  const ms = Date.now() - t0;
   const lines = r.stdout.split(/\r?\n/);
   const events = lines.flatMap((l) => {
     try {
@@ -92,7 +129,7 @@ function runScenario(root: string, o: Scenario = {}) {
     }
   });
   const read = (f: string) => (existsSync(`${root}/${f}`) ? readFileSync(`${root}/${f}`, "utf8") : "");
-  return { r, lines, events, read };
+  return { r, lines, events, read, ms };
 }
 
 const idx = (lines: string[], needle: string) => lines.findIndex((l) => l.includes(needle));
@@ -119,9 +156,24 @@ describe("image build request", () => {
     ["sqlite", /sqlite/i],
     ["git", /\bgit\b/],
     ["Codex CLI (@openai/codex)", /@openai\/codex/],
+    ["python3 and pip", /python3 python3-pip/],
+    ["pytest (D1)", /pip install[^\n]*\bpytest\b/],
   ] as const) {
     test(`Dockerfile installs ${what}`, () => assert.match(df, re));
   }
+
+  test("the fail-early check verifies python3, pytest and timeout", () => {
+    assert.match(df, /python3 --version/);
+    assert.match(df, /python3 -m pytest --version/);
+    assert.match(df, /timeout --version/);
+  });
+
+  test("the package ships detect-tests.mjs, and the Dockerfile COPYs every runner file in the package", () => {
+    const pkg = S.buildImagePackage();
+    assert.equal(pkg["detect-tests.mjs"], readFileSync(join(import.meta.dirname, "runner", "detect-tests.mjs"), "utf8"));
+    const copied = (df.match(/^COPY (.+) \/opt\/runner\/$/m)?.[1] ?? "").split(/\s+/);
+    for (const f of Object.keys(pkg).filter((k) => k !== "Dockerfile")) assert.ok(copied.includes(f), `${f} not copied`);
+  });
 
   test("package ships the Dockerfile and the exact runner script the Dockerfile will run", () => {
     const pkg = S.buildImagePackage();
@@ -611,5 +663,103 @@ describe("runner script: base commit and binary-safe diff", () => {
     const { lines } = runScenario(makeRoot());
     assert.ok(diffBlock(lines).includes(`diff --git a/${EDITED} b/${EDITED}`));
     assert.ok(!diffBlock(lines).includes("GIT binary patch"));
+  });
+});
+
+// ---------- per-run test command: detection inside the VM ----------
+const NODE_FILES = { "package.json": JSON.stringify({ name: "x", scripts: { test: "node --test" } }) };
+const PY_FILES = { "conftest.py": "", "requirements.txt": "requests\n" };
+const calls = (read: (f: string) => string) => read("calls.log").trim().split(/\r?\n/).filter(Boolean);
+const testResult = (events: any[]) => events.find((e) => e.type === "test_result");
+
+describe("runner script: test detection", () => {
+  test("Laravel (composer.json + artisan, even with a package.json) still runs exactly composer install, then php artisan test", () => {
+    const { read } = runScenario(makeRoot(), { origin: { ...LARAVEL_FILES, ...NODE_FILES } });
+    assert.deepEqual(calls(read), ["composer install --no-interaction", "php artisan test"]);
+  });
+
+  test("a Node repo runs npm ci, then npm test, and test_result carries npm test's exit code with no skipped field", () => {
+    const { read, events } = runScenario(makeRoot(), { origin: NODE_FILES, npmTestExit: 4 });
+    assert.deepEqual(calls(read), ["npm ci", "npm test"]);
+    assert.deepEqual(Object.keys(testResult(events)).sort(), ["exitCode", "ts", "type"]);
+    assert.equal(testResult(events).exitCode, 4);
+  });
+
+  test("when npm ci fails, npm install is tried before npm test", () => {
+    const { read } = runScenario(makeRoot(), { origin: NODE_FILES, npmCiExit: 1 });
+    assert.deepEqual(calls(read), ["npm ci", "npm install", "npm test"]);
+  });
+
+  test("a failed install means tests not run: exit 0, skipped 'dependencies could not be installed', npm test never runs", () => {
+    const { read, events, r } = runScenario(makeRoot(), { origin: NODE_FILES, npmCiExit: 1, npmInstallExit: 1 });
+    assert.deepEqual(calls(read), ["npm ci", "npm install"]);
+    assert.deepEqual(testResult(events), { type: "test_result", ts: testResult(events)?.ts, exitCode: 0, skipped: "dependencies could not be installed" });
+    assert.equal(r.status, 0);
+  });
+
+  test("an install slower than TEST_INSTALL_TIMEOUT is stopped and reported as not run", () => {
+    const { events, ms, read } = runScenario(makeRoot(), { origin: NODE_FILES, installSleep: 30, installTimeout: 1 });
+    assert.deepEqual(calls(read).slice(0, 1), ["npm ci"], "the install must have started");
+    assert.equal(testResult(events)?.skipped, "dependencies could not be installed");
+    assert.ok(!calls(read).includes("npm test"));
+    assert.ok(ms < 20_000, `took ${ms} ms; the timeout must cut the 30 s install short`);
+  });
+
+  test("a Python repo installs requirements.txt with pip, then runs pytest", () => {
+    const { read, events } = runScenario(makeRoot(), { origin: PY_FILES, pytestExit: 0 });
+    assert.deepEqual(calls(read), ["python3 -m pip install -q -r requirements.txt", "python3 -m pytest -q"]);
+    assert.equal(testResult(events).exitCode, 0);
+  });
+
+  test("a repo with no test evidence: no tool is called, exitCode 0, skipped 'no tests found', script exits 0", () => {
+    const { read, events, r } = runScenario(makeRoot(), { origin: {} });
+    assert.deepEqual(calls(read), []);
+    assert.equal(testResult(events)?.skipped, "no tests found");
+    assert.equal(testResult(events)?.exitCode, 0);
+    assert.equal(r.status, 0);
+  });
+
+  test("TEST_CMD wins over detection and is run as given", () => {
+    const { read, events } = runScenario(makeRoot(), { testCmd: "php custom-check --strict", phpExit: 6 });
+    assert.deepEqual(calls(read), ["php custom-check --strict"]);
+    assert.equal(testResult(events).exitCode, 6);
+  });
+
+  test("TEST_CMD=skip runs nothing and reports skipped 'skipped by request'", () => {
+    const { read, events } = runScenario(makeRoot(), { testCmd: "skip" });
+    assert.deepEqual(calls(read), []);
+    assert.equal(testResult(events)?.skipped, "skipped by request");
+  });
+
+  test("a crashing detector never fails the run: skipped 'detection failed', exit 0, diff still captured", () => {
+    const { events, lines, r } = runScenario(makeRoot(), { detectBody: "throw new Error('boom');" });
+    assert.equal(testResult(events)?.skipped, "detection failed");
+    assert.equal(r.status, 0);
+    assert.ok(diffBlock(lines).includes(`diff --git a/${EDITED}`));
+  });
+
+  test("files created by installs and tests never reach the diff (D2: snapshot before the test step)", () => {
+    const n = runScenario(makeRoot(), { origin: NODE_FILES });
+    assert.deepEqual(calls(n.read), ["npm ci", "npm test"], "the stubs that create the artifacts must actually have run");
+    const node = diffBlock(n.lines);
+    assert.ok(node.includes(`diff --git a/${EDITED}`), node);
+    assert.ok(!node.includes("node_modules/") && !node.includes(".test-cache"), node);
+    const p = runScenario(makeRoot(), { origin: PY_FILES });
+    assert.deepEqual(calls(p.read), ["python3 -m pip install -q -r requirements.txt", "python3 -m pytest -q"]);
+    assert.ok(!diffBlock(p.lines).includes(".pytest_cache"));
+  });
+
+  test("the test command's own stdout goes to stderr, never into the event stream", () => {
+    const { r } = runScenario(makeRoot(), { origin: NODE_FILES });
+    assert.ok(r.stderr.includes("TESTOUT"), "the test must have run and printed");
+    assert.ok(!r.stdout.includes("TESTOUT"));
+  });
+
+  test("a skipped line is one valid JSON object, and it comes before the diff block", () => {
+    const { lines } = runScenario(makeRoot(), { origin: {} });
+    const i = idx(lines, '"test_result"');
+    assert.ok(i >= 0, "a test_result line must exist");
+    assert.deepEqual(Object.keys(JSON.parse(lines[i])).sort(), ["exitCode", "skipped", "ts", "type"]);
+    assert.ok(i < idx(lines, "__DIFF_START__"));
   });
 });

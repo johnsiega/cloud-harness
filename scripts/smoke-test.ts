@@ -69,7 +69,7 @@ export function buildRunnerScript(): string {
 }
 
 export function buildImagePackage(): Record<string, string> {
-  return { Dockerfile: buildDockerfile(), "run-task.sh": buildRunnerScript(), "server.mjs": runnerFile("server.mjs") };
+  return { Dockerfile: buildDockerfile(), "run-task.sh": buildRunnerScript(), "server.mjs": runnerFile("server.mjs"), "detect-tests.mjs": runnerFile("detect-tests.mjs") };
 }
 
 export function buildImageRequest(o: { name: string; bucket: string; key: string; buildRoleArn: string; region?: string }): ImageRequest {
