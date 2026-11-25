@@ -39,7 +39,9 @@ Source: the "Lambda MicroVMs" table in the Lambda quotas page, and "Scaling and 
 
 **What this means for us.** The default 2,048 GB would fit hundreds of 2 GB VMs, yet our account refused a fifth VM while four were suspended. So this account is on the **reduced new-account quota**. Our VMs use the 2 GB default baseline, so the applied limit looks to be somewhere between 8 and 10 GB. That is an inference, not a fact: the scoped user cannot read Service Quotas.
 
-**Free ways to learn the real number:**
+**Verified 2026-11-25 (Service Quotas console screenshot from the account owner):** "Max allocated X86_64 MicroVM memory" is **8 GB applied** (AWS default 2,048 GB), and ARM_64 is also 8 GB. So the inference above was right: at 2 GB per VM, **at most 4 real runs can exist at once** (running or suspended). Same screenshot: concurrent image builds are 10 (not the documented 5); the API rate limits match the table (RunMicrovm 5/s, Resume 5/s, Suspend 2/s, Terminate 10/s, Get 100/s); MicroVM images 100.
+
+**Free ways to learn the real number (no longer needed):**
 1. Look in the AWS Console: Service Quotas, AWS services, Lambda MicroVMs, "Memory allocated across all MicroVMs". It shows the applied value and costs nothing. **Ask the user to read it and paste the number.**
 2. A user with admin rights could grant `servicequotas:GetServiceQuota` and `servicequotas:ListServiceQuotas`. Not needed if the Console value is known.
 
