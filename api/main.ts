@@ -6,7 +6,9 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { createAwsMicrovms } from "./aws-microvms.ts";
 import { resolveMode } from "./mode.ts";
 import { createMicrovmLauncher } from "./microvm-launcher.ts";
+import { createGithubPrs } from "./github-pr.ts";
 import { createPatchDelivery } from "./patch-delivery.ts";
+import { parseRepoList } from "./repo-allowlist.ts";
 import { createRedactor } from "./redact.ts";
 import { executeRun } from "./run-controller.ts";
 import { createRunStore } from "./run-store.ts";
@@ -38,7 +40,8 @@ export async function main(): Promise<void> {
   }
   const { apiKey, imageArn } = mode;
   setInterval(() => store.sweep(), 60_000).unref();
-  const redact = createRedactor([apiKey, process.env.GIT_PUSH_TOKEN ?? ""]);
+  const prToken = process.env.GIT_PR_TOKEN;
+  const redact = createRedactor([apiKey, process.env.GIT_PUSH_TOKEN ?? "", prToken ?? ""]);
   const launcher = createMicrovmLauncher({ aws: createAwsMicrovms({ region }), imageArn, apiKey, region });
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   // Push is optional: without GIT_PUSH_TOKEN the route answers 503 and the UI hides the button. The token stays in this process.
@@ -46,7 +49,11 @@ export async function main(): Promise<void> {
   const pushTarget = process.env.PUSH_TARGET_URL ?? "https://github.com/johnsiega/hospital-queue-harness";
   const push = pushToken ? { token: pushToken, targetUrl: pushTarget, deliver: createPatchDelivery({ redact }).pushBranch } : undefined;
   console.log(push ? `push enabled: harness/<runId> branches go to ${pushTarget}` : "push disabled (set GIT_PUSH_TOKEN in .env to enable)");
-  const app = createApp({ store, redact, push, startRun: (id) => { void executeRun({ store, launcher, redact, now: Date.now, sleep }, id); } });
+  // Draft PRs are optional and need both settings; the token stays in this process, like the push token.
+  const prRepos = parseRepoList(process.env.PR_REPOS);
+  const pr = prToken && prRepos.length ? { repos: prRepos, token: prToken, deliver: createPatchDelivery({ redact }).pushBranch, github: createGithubPrs({ token: prToken }) } : undefined;
+  console.log(pr ? `draft PRs enabled for: ${prRepos.join(", ")}` : "draft PRs disabled (set PR_REPOS and GIT_PR_TOKEN in .env to enable)");
+  const app = createApp({ store, redact, push, pr, startRun: (id) => { void executeRun({ store, launcher, redact, now: Date.now, sleep }, id); } });
   // Same origin for UI and API (npm run web:build first). Registered after the API routes, so /runs/* always wins.
   app.use("/*", serveStatic({ root: webRoot }));
   const srv = await startServer(app, { port: Number(process.env.PORT) || 3000 });

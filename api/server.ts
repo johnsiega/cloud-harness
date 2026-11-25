@@ -2,8 +2,10 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
-import { buildRunRequest } from "../scripts/smoke-test.ts";
+import { MODEL_ID, buildRunRequest } from "../scripts/smoke-test.ts";
+import { buildPrText, describeTests, type GithubPrs, type PrFailure } from "./github-pr.ts";
 import type { PushInput, PushResult } from "./patch-delivery.ts";
+import { repoSlug } from "./repo-allowlist.ts";
 import { checkRequest } from "./request-guard.ts";
 import { registerSimulation } from "./simulate-routes.ts";
 import type { SimDeps } from "./simulate-routes.ts";
@@ -20,9 +22,12 @@ export interface AppDeps {
   /** Demo mode: no key or image, so real runs and push answer 503 with `reason`; the simulation still works. */
   demo?: { reason: string };
   push?: { token: string; targetUrl: string; deliver: (input: PushInput) => Promise<PushResult> };
+  /** Draft PRs into the run's own repo, only for repos in PR_REPOS. Absent unless PR_REPOS and GIT_PR_TOKEN are both set. */
+  pr?: { repos: string[]; token: string; deliver: (input: PushInput) => Promise<PushResult>; github: GithubPrs };
 }
 
 const PUSH_STATUS = { invalid_input: 400, redacted_diff: 422, branch_exists: 409, stale_base: 409, patch_failed: 422, push_failed: 502 } as const;
+const PR_STATUS: Record<PrFailure, 409 | 502> = { pr_unprocessable: 409, pr_unauthorized: 502, pr_forbidden: 502, pr_not_found: 502, pr_unreachable: 502, pr_failed: 502 };
 
 type Validated = { ok: true; req: RunRequest } | { ok: false; error: string };
 
@@ -89,8 +94,9 @@ export function createApp(d: AppDeps): Hono {
   // Tells the UI whether to show the push button. Never includes the token or the full URL.
   app.get("/config", (c) => {
     if (d.demo) return c.json({ demo: true, pushEnabled: false });
-    if (!d.push) return c.json({ pushEnabled: false });
-    return c.json({ pushEnabled: true, pushTarget: new URL(d.push.targetUrl).pathname.replace(/^\/|\.git$/g, "") });
+    const pr = d.pr ? { prRepos: d.pr.repos } : {}; // repo names only, never a token
+    if (!d.push) return c.json({ pushEnabled: false, ...pr });
+    return c.json({ pushEnabled: true, pushTarget: new URL(d.push.targetUrl).pathname.replace(/^\/|\.git$/g, ""), ...pr });
   });
 
   // Push the finished run's diff to harness/<runId> in the configured private repo. The caller chooses nothing: the branch,
@@ -122,6 +128,49 @@ export function createApp(d: AppDeps): Hono {
     const url = `${d.push.targetUrl.replace(/\.git$/, "")}/tree/${result.branch}`;
     d.store.update(id, { push: { branch: result.branch, commit: result.commit, url } });
     return c.json({ branch: result.branch, commit: result.commit, url });
+  });
+
+  // Draft PR into the run's OWN repo, only if PR_REPOS lists it. Like push, the caller chooses nothing.
+  const opening = new Set<string>();
+  app.post("/runs/:id/pr", async (c) => {
+    const id = c.req.param("id");
+    const run = d.store.get(id);
+    if (!run) return c.json({ error: "run not found" }, 404);
+    if (!d.pr) return c.json({ error: "draft PRs are not configured: set PR_REPOS and GIT_PR_TOKEN in .env and restart" }, 503);
+    if (run.pr?.number) return c.json({ error: "this run already has a pull request", number: run.pr.number, url: run.pr.url, branch: run.pr.branch }, 409);
+    if (opening.has(id)) return c.json({ error: "a pull request for this run is already being opened" }, 409);
+    if (run.status !== "done") return c.json({ error: "only a successfully finished run can become a pull request" }, 409);
+    if (!run.diff || run.diff.trim() === "" || !run.baseCommit) return c.json({ error: "the run has no diff or base commit" }, 400);
+    const slug = repoSlug(run.request.repoUrl);
+    if (!slug || !d.pr.repos.includes(slug)) return c.json({ error: "this run's repo is not in PR_REPOS" }, 403);
+
+    opening.add(id);
+    try {
+      // Reading the default branch first is also the cheapest check that the token can see the repo: no stray branch if it cannot.
+      const base = await d.pr.github.defaultBranch(slug);
+      if (!base.ok) return c.json({ error: d.redact.text(base.error), reason: base.reason }, PR_STATUS[base.reason]);
+
+      let pushed = run.pr; // set when an earlier attempt pushed the branch but the PR call failed: skip the push, never force
+      if (!pushed) {
+        let r: PushResult;
+        try {
+          r = await d.pr.deliver({ sourceUrl: run.request.repoUrl, targetUrl: run.request.repoUrl, baseCommit: run.baseCommit, diff: run.diff, runId: id, token: d.pr.token });
+        } catch (e) {
+          r = { ok: false, reason: "push_failed", error: e instanceof Error ? e.message : String(e), log: "" };
+        }
+        if (!r.ok) return c.json({ error: d.redact.text(r.error), reason: r.reason, log: d.redact.text(r.log) }, PUSH_STATUS[r.reason] ?? 502);
+        pushed = { branch: r.branch, commit: r.commit };
+        d.store.update(id, { pr: pushed });
+      }
+
+      const text = buildPrText({ task: run.request.task, runId: id, model: run.request.model ?? MODEL_ID, tests: describeTests(run.events) });
+      const opened = await d.pr.github.openDraft({ slug, head: pushed.branch, base: base.value, title: d.redact.text(text.title), body: d.redact.text(text.body) });
+      if (!opened.ok) return c.json({ error: d.redact.text(opened.error), reason: opened.reason }, PR_STATUS[opened.reason]);
+      d.store.update(id, { pr: { ...pushed, number: opened.value.number, url: opened.value.url } });
+      return c.json({ number: opened.value.number, url: opened.value.url, branch: pushed.branch });
+    } finally {
+      opening.delete(id);
+    }
   });
 
   app.get("/runs/:id", (c) => {
