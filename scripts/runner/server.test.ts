@@ -201,3 +201,45 @@ describe("runner server", () => {
     assert.equal((await fetch(`${s.base}/`, { method: "GET" })).status, 404);
   });
 });
+
+describe("runner server: testCommand", () => {
+  const SHOW = 'echo "TEST_CMD=${TEST_CMD-unset}"\nexit 0';
+  const REPO = "https://github.com/jyvnn/hospital-queue";
+
+  test("testCommand reaches the script as TEST_CMD, verbatim (quotes, $ and ; are not interpreted on the way)", async () => {
+    const s = await start(SHOW);
+    assert.ok(s.ready);
+    await sendRunHook(s.base);
+    const cmd = `npm run check -- --name "a b"; echo $HOME`;
+    assert.equal((await post(s.base + "/", { repoUrl: REPO, task: "t", testCommand: cmd })).status, 202);
+    const { lines } = await drain(s.base);
+    assert.deepEqual(lines, [`TEST_CMD=${cmd}`]);
+  });
+
+  test("without testCommand (or with an empty one) TEST_CMD is not set at all, so the script auto-detects", async () => {
+    for (const body of [{ repoUrl: REPO, task: "t" }, { repoUrl: REPO, task: "t", testCommand: "" }]) {
+      const s = await start(SHOW);
+      assert.ok(s.ready);
+      await sendRunHook(s.base);
+      assert.equal((await post(s.base + "/", body)).status, 202);
+      assert.deepEqual((await drain(s.base)).lines, ["TEST_CMD=unset"], JSON.stringify(body));
+    }
+  });
+
+  test("a testCommand that is not a string, or longer than 500 characters, answers 400 and nothing starts", async () => {
+    const s = await start(SHOW);
+    assert.ok(s.ready);
+    await sendRunHook(s.base);
+    for (const testCommand of [42, null, ["npm test"], "x".repeat(501)]) {
+      assert.equal((await post(s.base + "/", { repoUrl: REPO, task: "t", testCommand })).status, 400, JSON.stringify(testCommand).slice(0, 40));
+    }
+    assert.equal((await fetch(`${s.base}/events`)).status, 404, "no run may have started");
+  });
+
+  test("exactly 500 characters is accepted", async () => {
+    const s = await start(SHOW);
+    assert.ok(s.ready);
+    await sendRunHook(s.base);
+    assert.equal((await post(s.base + "/", { repoUrl: REPO, task: "t", testCommand: "x".repeat(500) })).status, 202);
+  });
+});

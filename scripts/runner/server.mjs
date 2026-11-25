@@ -1,6 +1,6 @@
 // Idle HTTP runner inside the MicroVM (port 8080). Lambda snapshots it idle; after restore:
 //   POST /aws/lambda-microvms/runtime/v1/run  <- Lambda delivers runHookPayload (key + model), returns 200
-//   POST /            {repoUrl, task}         <- control plane starts the run (once)
+//   POST /            {repoUrl, task, testCommand?} <- control plane starts the run (once); testCommand becomes TEST_CMD
 //   GET  /events?since=N                      <- control plane polls JSONL lines
 //   GET  /health
 import http from "node:http";
@@ -29,7 +29,7 @@ function pump(stream, sink) {
   stream.on("end", () => { if (buf) sink.push(redact(buf)); });
 }
 
-function start(repoUrl, task) {
+function start(repoUrl, task, testCommand) {
   run = { lines: [], stderr: [], done: false, exitCode: null };
   const child = spawn(BASH, [RUN_TASK_SCRIPT], {
     env: {
@@ -40,6 +40,7 @@ function start(repoUrl, task) {
       MODEL: hook.MODEL || "deepseek/deepseek-v4.1-flash",
       OPENROUTER_API_KEY: hook.OPENROUTER_API_KEY,
       WORKDIR: "/workspace",
+      ...(testCommand ? { TEST_CMD: testCommand } : {}), // unset means run-task.sh auto-detects
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -78,8 +79,9 @@ http
       try { p = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: "invalid JSON" }); }
       if (typeof p.repoUrl !== "string" || !GITHUB.test(p.repoUrl.replace(/\.git$/, ""))) return send(res, 400, { error: "invalid repoUrl" });
       if (typeof p.task !== "string" || !p.task) return send(res, 400, { error: "task required" });
+      if (p.testCommand !== undefined && (typeof p.testCommand !== "string" || p.testCommand.length > 500)) return send(res, 400, { error: "testCommand must be a string of at most 500 characters" });
       if (!hook.OPENROUTER_API_KEY) return send(res, 412, { error: "run hook payload not received" });
-      start(p.repoUrl, p.task);
+      start(p.repoUrl, p.task, p.testCommand);
       return send(res, 202, { started: true });
     }
     send(res, 404, { error: "not found" });
