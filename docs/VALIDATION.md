@@ -77,7 +77,7 @@ Five real runs each on the same task; "correct" means one comment directly above
 
 ## 8. Tests and CI
 
-- **Unit and local tests:** 466 tests, 465 pass, 1 skipped (the real-AWS integration test, skipped unless `RUN_INTEGRATION=1`), with `npm test` after the quota-detection fix (the count was 459 when the real runs above were made). They need no AWS access.
+- **Unit and local tests:** 525 tests, 524 pass, 1 skipped (the real-AWS integration test, skipped unless `RUN_INTEGRATION=1`), with `npm test` after the per-run test command work (it was 466 after the quota-detection fix, and 459 when the Phase 5 real runs were made). They need no AWS access. CI was green on Ubuntu and Windows for this count (commit `12ce818`).
 - **Integration test:** 1 real MicroVM through the real control plane (HTTP to SSE), run on 2026-11-25: passed (status done, 10 events, a 406-byte diff). Record: [`measurements/integration-2026-11-25.json`](measurements/integration-2026-11-25.json).
 - **CI:** the tests and the UI build ran green on Ubuntu and Windows for every commit pushed in Phase 5 (GitHub Actions). macOS was not tested.
 
@@ -96,3 +96,16 @@ Five real runs each on the same task; "correct" means one comment directly above
 - The unexplained slow first two runs of the K=2 step (about 45 s to first output).
 - Per-model results beyond N=5 per model, and any repository other than `jyvnn/hospital-queue`.
 - AWS and OpenRouter cost per run.
+- **Test command (section 11):** the Node and Python detection paths and the 180 s install limit have not run in a real MicroVM; a custom command and `skip` were never run for real; a repo with pytest or Node tests was not run for real.
+- **Slower first output on the rebuilt image** (about 29 to 48 s, section 11): the cause is unknown and was not compared against the old image on the same day.
+
+## 11. Per-run test command (measured, 2026-11-25)
+
+Real runs of the build with the per-run test command (the runner detects the tests inside the VM). Three real runs in all, one image build, one machine; read them as indications.
+
+- **Image build:** `hq-smoke-1795605632129`, 181.2 s to `CREATED` (service-side time reported by the smoke script). The Dockerfile's `python3 -m pip install pytest` and its check line (python3, pytest, `timeout`) passed on the first build.
+- **Smoke run on `jyvnn/hospital-queue`** (the script's default task, run straight through the runner, not the control plane): gate passed, `test_exit_code` 0, 459-byte diff, 43.4 s total, 3.8 s to ready, about 31 s before the agent's first message, 30,251 input and 214 output tokens.
+- **Regression through the control plane, `jyvnn/hospital-queue`, Test command blank** (run `dcdced83-129c-4de6-a0cb-7f7ac8d6dfeb`): ended `done`; the test step was **detected as PHP and passed** ("Tests passed", green); the diff was one added comment line above `enabled()` and nothing else. 1.8 s to ready, 47.5 s to first output, 53.8 s total.
+- **`johnsiega/goats-hsw-rag-chatbot`, Test command blank** (run `4b3ce2d2-64ea-4ea3-a988-2a65ac168114`): ended `done`; the rail showed the grey **Tests not run: no tests found** and the Terminal badge was grey, not green and not red. The diff was one comment line at the top of `app.py`. 1.3 s to ready, 28.8 s to first output, 35.0 s total. This is the case that used to end in error from a missing `composer.json`. I did not push this run.
+- **Slower than before, cause unknown:** first output came after 29 to 48 s in all three runs on the new image, against a median of 6.8 s (and 15.4 s total) in the earlier 13 real runs. Ready times were normal (1.3 to 3.8 s), and after the first output the agent, tests and diff took only about 4 to 6 s. The old image was not run on the same day, so whether the image (it now also contains python3 and pytest), the network, or the model service is responsible is **not known**.
+- **Not run for real:** the Node and Python detection and install paths, the 180 s install limit against a real slow install, a custom command, `skip`, and the request path for a typed command. These are covered by unit and script tests with fake `npm`, `python3` and pip programs only.
