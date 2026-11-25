@@ -7,6 +7,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createAwsMicrovms } from "../api/aws-microvms.ts";
+import { isQuotaError } from "../api/quota.ts";
 import { killAll, planKill } from "./kill-all.ts";
 
 export type Http = (method: "GET" | "POST", path: string, body?: unknown) => Promise<{ status: number; json: any }>;
@@ -30,7 +31,6 @@ export type StepResult = { k: number; runs: RunSummary[]; ok: boolean; quota: bo
 export type LoadReport = { steps: StepResult[]; highestFullySucceeded: number; stoppedBy: "max" | "quota" | "failure" };
 
 const REPO_URL = "https://github.com/jyvnn/hospital-queue";
-const isQuota = (s: string | undefined) => /quota/i.test(s ?? "");
 
 // Same small job per run, made distinct (the control plane rejects a duplicate repo+task while one is active).
 export function taskFor(i: number): string {
@@ -46,7 +46,7 @@ export function summarizeRun(index: number, record: any, durationMs: number): Ru
     index,
     status: record.status === "done" ? "done" : "error",
     durationMs,
-    quota: events.some((e) => e.type === "stderr" && isQuota(e.text)),
+    quota: events.some((e) => e.type === "stderr" && isQuotaError(e.text)),
   };
   if (record.startupMs !== undefined) s.startupMs = record.startupMs;
   if (record.firstTokenMs !== undefined) s.firstOutputMs = record.firstTokenMs;
@@ -82,7 +82,7 @@ export async function runStep(deps: LoadDeps, k: number, opts: LoadOpts = {}): P
     if (res.status === 202) pending.push({ index: i, id: res.json.id, submitMs });
     else {
       const error = String(res.json?.error ?? `HTTP ${res.status}`);
-      runs[i] = { index: i, status: "rejected", error, quota: isQuota(error) };
+      runs[i] = { index: i, status: "rejected", error, quota: isQuotaError(error) };
     }
   }
 

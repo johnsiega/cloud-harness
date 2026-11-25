@@ -225,7 +225,7 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fi
 CI runs the tests and the UI build on Ubuntu and Windows for every push and pull request. It uses no secrets and spends no AWS money.
 
 ```powershell
-npm test                  # unit tests, real-git push tests, runner tests (459 tests: 458 pass, 1 skipped)
+npm test                  # unit tests, real-git push tests, runner tests (466 tests: 465 pass, 1 skipped)
 npm run test:integration  # one real MicroVM; costs a few cents; set RUN_INTEGRATION=1 and MICROVM_IMAGE_ARN
 ```
 

@@ -1,6 +1,6 @@
 # Phase 5 and 6 plan: simulation, load, validation, freeze
 
-Status: steps 1 to 15 built and recorded (2026-11-25); step 16 (release) and 17 (cleanup) wait for the owner. Written on Opus 5.5 for a Sonnet 5.5 build. Base commit: `9988f23`.
+Status: steps 1 to 15 built and recorded (plus the quota-detection fix) (2026-11-25); step 16 (release) and 17 (cleanup) wait for the owner. Written on Opus 5.5 for a Sonnet 5.5 build. Base commit: `9988f23`.
 
 ## What the document requires
 

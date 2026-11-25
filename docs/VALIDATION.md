@@ -42,7 +42,7 @@ What was actually measured, with how many samples, when, how, and where the raw 
 
 - **Highest K that fully succeeded: 4**, one run per step (N=1 per K). Across the 13 successful runs: startup median 1,337 ms (min 1,260, max 2,243); first output median 6.8 s (min 4.4, max 45.7); total median 15.4 s (min 10.6, max 62.9).
 - Startup stayed 1.3 to 2.2 s while four VMs started together. Durations vary a lot with model latency, so these totals are not comparable to single-run figures.
-- The script labelled the K=5 stop as "a failure other than the quota", because AWS's wording does not contain "quota". It is a quota stop; only the label is wrong.
+- The script labelled the K=5 stop as "a failure other than the quota", because AWS's wording does not contain "quota". It is a quota stop; only the label was wrong. The detection was fixed afterwards in `api/quota.ts` (shared by `load-real` and `measure-startup`, with tests), and the stored record keeps the original label.
 - **The document's "real mode tested at 10 to 20 MicroVMs" is not met.** It needs a Service Quotas increase, which only the account owner can request. After an increase, re-run `scripts/load-real.ts` with higher `LOAD_MAX_K` and update this section.
 
 ## 4. 100 concurrent runs (simulated, not real)
@@ -77,7 +77,7 @@ Five real runs each on the same task; "correct" means one comment directly above
 
 ## 8. Tests and CI
 
-- **Unit and local tests:** 459 tests, 458 pass, 1 skipped (the real-AWS integration test, skipped unless `RUN_INTEGRATION=1`), with `npm test` at commit `d783350`. They need no AWS access.
+- **Unit and local tests:** 466 tests, 465 pass, 1 skipped (the real-AWS integration test, skipped unless `RUN_INTEGRATION=1`), with `npm test` after the quota-detection fix (the count was 459 when the real runs above were made). They need no AWS access.
 - **Integration test:** 1 real MicroVM through the real control plane (HTTP to SSE), run on 2026-11-25: passed (status done, 10 events, a 406-byte diff). Record: [`measurements/integration-2026-11-25.json`](measurements/integration-2026-11-25.json).
 - **CI:** the tests and the UI build ran green on Ubuntu and Windows for every commit pushed in Phase 5 (GitHub Actions). macOS was not tested.
 

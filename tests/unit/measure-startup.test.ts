@@ -308,6 +308,15 @@ describe("runMeasurement", () => {
     assert.equal(r.failures.length, 1);
   });
 
+  test("AWS's real refusal text (no word 'quota' in it) also stops the measurement and is reported as a quota stop", async () => {
+    const refusal = Object.assign(new Error("The base maximum allocated memory limit has been reached for this account."), { name: "ServiceException" });
+    const { deps, w } = world({ fail: (op, vm) => (op === "run" && vm === 2 ? refusal : undefined) });
+    const r = await runMeasurement(deps, { ...OPTS, cycles: 5 });
+    assert.equal(w.nRun, 2, "no further VM may be started");
+    assert.match(r.stoppedEarly ?? "", /quota/i);
+    assert.equal(r.failures.length, 1);
+  });
+
   test("zero cycles does nothing and returns empty statistics", async () => {
     const { deps, w } = world();
     const r = await runMeasurement(deps, { ...OPTS, cycles: 0 });

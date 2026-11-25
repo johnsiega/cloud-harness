@@ -81,6 +81,11 @@ describe("summarizeRun", () => {
     assert.equal(summarizeRun(0, { status: "error", events: [{ type: "stderr", text: "ServiceQuotaExceededException: memory quota reached" }] }, 1).quota, true);
   });
 
+  test("the message AWS really returned when it refused a VM (no word 'quota' in it) also sets quota", () => {
+    const aws = "The base maximum allocated memory limit has been reached for this account.";
+    assert.equal(summarizeRun(0, { status: "error", events: [{ type: "stderr", text: aws }] }, 1).quota, true);
+  });
+
   test("missing optional fields stay undefined", () => {
     const s = summarizeRun(0, { status: "error", events: [] }, 5);
     assert.equal(s.status, "error");
@@ -167,6 +172,23 @@ describe("runLoad", () => {
     assert.equal(r.highestFullySucceeded, 3);
     assert.equal(r.stoppedBy, "quota");
     assert.equal(w.log.filter((l) => l.startsWith("kill-all")).length, 3);
+  });
+
+  test("a step whose only failure is AWS's real refusal text is reported as stopped by the quota", async () => {
+    const aws = "The base maximum allocated memory limit has been reached for this account.";
+    const w = world();
+    const http = w.deps.http;
+    const deps: LoadDeps = { ...w.deps, http: async (m, path, b) => {
+      const res = await http(m, path, b);
+      return m === "GET" && path.endsWith("-1-1") && res.json.status === "done"
+        ? { status: 200, json: { status: "error", events: [{ type: "stderr", text: aws }] } }
+        : res;
+    } };
+    const r = await runLoad(deps, { startK: 2, maxK: 4 });
+    assert.deepEqual(r.steps.map((x) => x.k), [2, 3]);
+    assert.equal(r.highestFullySucceeded, 2);
+    assert.equal(r.stoppedBy, "quota");
+    assert.equal(r.steps[1].quota, true);
   });
 
   test("stops at a non-quota failure too, reporting it as a failure and not as the quota", async () => {

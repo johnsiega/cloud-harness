@@ -7,6 +7,7 @@
 //
 //   AWS_PROFILE=<your-profile> MICROVM_IMAGE_ARN=<arn> node scripts/measure-startup.ts      (spends a little money; see docs/PHASE_4_PLAN.md)
 import { mkdirSync, writeFileSync } from "node:fs";
+import { isQuotaError } from "../api/quota.ts";
 import { join } from "node:path";
 
 export type Stats = { n: number; min: number; median: number; p95: number; max: number };
@@ -121,7 +122,7 @@ export async function measureCycle(d: MeasureDeps, o: CycleOpts): Promise<CycleR
   }
 }
 
-const isQuota = (e: unknown) => /quota/i.test(`${(e as Error)?.name} ${(e as Error)?.message}`);
+const isQuota = (e: unknown) => isQuotaError(`${(e as Error)?.name} ${(e as Error)?.message}`);
 
 export async function runMeasurement(d: MeasureDeps, o: CycleOpts & { cycles: number }): Promise<MeasurementResult> {
   const cycles: CycleResult[] = [];
