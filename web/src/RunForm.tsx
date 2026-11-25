@@ -8,10 +8,11 @@ export function RunForm({ busy, onSubmit }: { busy: boolean; onSubmit: (req: Run
   const [repoUrl, setRepoUrl] = useState(DEFAULT_REPO);
   const [task, setTask] = useState(DEFAULT_TASK);
   const [model, setModel] = useState("");
+  const [testCommand, setTestCommand] = useState("");
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    onSubmit({ repoUrl: repoUrl.trim(), task: task.trim(), ...(model.trim() ? { model: model.trim() } : {}) });
+    onSubmit({ repoUrl: repoUrl.trim(), task: task.trim(), ...(model.trim() ? { model: model.trim() } : {}), ...(testCommand.trim() ? { testCommand: testCommand.trim() } : {}) });
   };
 
   return (
@@ -23,6 +24,10 @@ export function RunForm({ busy, onSubmit }: { busy: boolean; onSubmit: (req: Run
       <label className="field model">
         <span>Model</span>
         <input value={model} onChange={(e) => setModel(e.target.value)} spellCheck={false} placeholder="deepseek/deepseek-v4.1-flash" />
+      </label>
+      <label className="field tests">
+        <span>Test command</span>
+        <input value={testCommand} onChange={(e) => setTestCommand(e.target.value)} spellCheck={false} maxLength={500} placeholder="auto-detect (or type skip)" />
       </label>
       <label className="field task">
         <span>Task for the agent</span>

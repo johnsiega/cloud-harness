@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { canPush, pushLabel, shortSha } from "./push-state.ts";
-import { diffLines, formatMs, type RunView } from "./run-view.ts";
+import { diffLines, formatMs, testTone, type RunView } from "./run-view.ts";
 import { usePush } from "./usePush.ts";
 
 function useStickToBottom(dep: unknown) {
@@ -33,7 +33,7 @@ function TerminalPanel({ view }: { view: RunView }) {
     <section className="panel terminal" aria-labelledby="h-terminal">
       <header>
         <h2 id="h-terminal">Terminal</h2>
-        {view.test && <span className={`badge ${view.test.exitCode === 0 ? "ok" : "fail"}`}>{view.test.summary}</span>}
+        {view.test && <span className={`badge ${testTone(view.test)}`}>{view.test.summary}</span>}
       </header>
       <div className="body" ref={ref} tabIndex={0}>
         {view.terminal.length === 0 && <p className="empty">Commands and their output show up here.</p>}
