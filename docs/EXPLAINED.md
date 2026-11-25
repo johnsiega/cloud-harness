@@ -67,7 +67,7 @@ Browser ──► Control plane ──► AWS Lambda MicroVM ──► Codex CLI
 10. **The browser renders it** with a pure reducer (`web/src/run-view.ts`) into three panels (Reasoning, Terminal, Diff) and a four-step progress rail.
 11. **The outcome is decided.** A run is `error` if the tests exit non-zero, Codex exits non-zero, or the diff is empty. Otherwise `done`. A test step that was not run counts as exit 0 (so it cannot turn a good diff red) but is shown as a grey "Tests not run" with its reason, never green.
 12. **The VM is terminated, always** (`finally` in `executeRun`), even if something failed.
-13. **If you press "Push to branch":** the control plane clones the source repo fresh at the **exact base commit**, applies the diff, commits as "Cloud harness" and pushes `harness/<runId>` to the private repo (`api/patch-delivery.ts`). The VM is already gone and never sees the GitHub token.
+13. **If you press "Push to branch" (or, for a repo in `PR_REPOS`, "Open draft PR"):** the control plane clones the source repo fresh at the **exact base commit**, applies the diff, commits as "Cloud harness" and pushes `harness/<runId>` to the private repo (`api/patch-delivery.ts`). The VM is already gone and never sees the GitHub token. The PR button does the same push into the run's own repo with a separate token, then opens a **draft** pull request through the GitHub API (`api/github-pr.ts`).
 
 ---
 
@@ -78,7 +78,7 @@ Browser ──► Control plane ──► AWS Lambda MicroVM ──► Codex CLI
 |---|---|
 | `main.ts` | Entry point. Reads `.env`, picks real or demo mode, wires everything, serves the built UI. |
 | `mode.ts` | Decides real vs demo from the environment (missing key/image, or `HARNESS_DEMO=1`). |
-| `server.ts` | The Hono routes: `/runs`, `/runs/:id`, `/runs/:id/stream`, `/runs/:id/push`, `/config`, and the demo-mode 503 guard. |
+| `server.ts` | The Hono routes: `/runs`, `/runs/:id`, `/runs/:id/stream`, `/runs/:id/push`, `/runs/:id/pr`, `/config`, and the demo-mode 503 guard. |
 | `request-guard.ts` | Rejects cross-site and DNS-rebinding requests (see §6). |
 | `run-controller.ts` | One run, start to finish: launch, poll, parse, decide outcome, always terminate. |
 | `microvm-launcher.ts` | Launches a VM and talks to the runner. Every runner call has a 30 s deadline. |
@@ -88,6 +88,8 @@ Browser ──► Control plane ──► AWS Lambda MicroVM ──► Codex CLI
 | `run-store.ts` | In-memory records with a one-hour TTL. |
 | `sse.ts` | Formats SSE frames safely (a multi-line diff stays on one `data:` line). |
 | `patch-delivery.ts` | The safe branch push. |
+| `github-pr.ts` | The GitHub REST client for draft PRs (injected `fetch`, fixed error messages) and the PR title and body builders. |
+| `repo-allowlist.ts` | `PR_REPOS` parsing and exact owner/repo matching, shared by the server and the UI. |
 | `simulation.ts`, `simulate-routes.ts` | The seeded 100-run simulation and its endpoints. |
 | `quota.ts` | Recognises AWS's "memory limit reached" refusal. |
 | `types.ts` | The shared data contracts and test seams. |
@@ -103,7 +105,7 @@ Browser ──► Control plane ──► AWS Lambda MicroVM ──► Codex CLI
 - `load-real.ts`: stepped real concurrency test.
 
 ### `tests/` and CI
-525 tests (524 pass, 1 skipped, the real-AWS integration test, which only runs with `RUN_INTEGRATION=1`). Tests live in `tests/unit`, `tests/simulation`, `tests/integration`, plus `scripts/*.test.ts`. CI (`.github/workflows/ci.yml`) runs the tests and the UI build on Ubuntu and Windows with no secrets and read-only permissions.
+578 tests (577 pass, 1 skipped, the real-AWS integration test, which only runs with `RUN_INTEGRATION=1`). Tests live in `tests/unit`, `tests/simulation`, `tests/integration`, plus `scripts/*.test.ts`. CI (`.github/workflows/ci.yml`) runs the tests and the UI build on Ubuntu and Windows with no secrets and read-only permissions.
 
 ---
 
@@ -192,7 +194,7 @@ Full tables, samples and sources are in [`VALIDATION.md`](VALIDATION.md). Highli
 | Real runs at once | **4** succeeded (K=2, 3, 4); the 5th VM was refused by the 8 GB memory limit |
 | A real run (13 runs, started 2 to 5 at a time) | first output median 6.8 s, total median 15.4 s |
 | 100 concurrent runs | **simulated**; the browser showed 100 in progress at once |
-| Tests | 525 (524 pass, 1 skipped), green on Ubuntu and Windows once CI confirms the push |
+| Tests | 578 (577 pass, 1 skipped), green on Ubuntu and Windows once CI confirms the push |
 
 **Reading the numbers correctly**
 - "Ready" excludes repo clone and model time, which dominate a real run.
@@ -225,7 +227,7 @@ Full tables, samples and sources are in [`VALIDATION.md`](VALIDATION.md). Highli
 
 ```powershell
 npm install
-npm test                      # 525 tests, no AWS needed
+npm test                      # 578 tests, no AWS needed
 npm run web:build             # build the UI
 npm start                     # real mode if keys/image set, otherwise demo mode
 $env:HARNESS_DEMO = "1"; npm start   # force demo mode
@@ -248,7 +250,7 @@ npm run test:integration        # one real MicroVM (RUN_INTEGRATION=1, spends a 
 - Measured **MicroVM startup (median 1.9 s over 20 runs)** and **resume (1.8 s)**, set a decision gate in advance, and **declined to build a warm pool** when the data failed it.
 - Ran **up to 4 concurrent real agent runs** and diagnosed the account's **8 GB MicroVM memory quota** as the limit; built a **seeded 100-run simulated load view** (one SSE connection, per-frame batching) to test the UI at scale, clearly labelled as simulated.
 - Found and fixed a **cross-site request vulnerability** (a web page could start a VM through a localhost API) with Host/Origin/content-type checks; kept API and GitHub tokens out of logs and out of the sandbox.
-- Delivered **525 automated tests, built test-first**, with CI on Ubuntu and Windows, plus a validation document where every number has its sample size, date and source.
+- Delivered **578 automated tests, built test-first**, with CI on Ubuntu and Windows, plus a validation document where every number has its sample size, date and source.
 
 ### Claims to avoid or qualify
 - ❌ "Runs 100+ concurrent agents." ✅ "Renders 100 **simulated** concurrent runs; real mode tested to 4 under the account quota."

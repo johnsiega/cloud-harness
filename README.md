@@ -61,7 +61,7 @@ Cloud harness is a tool you run yourself, against your own AWS account. Here is 
 | **Compare coding models on the same task.** Find out which cheap model actually finishes the job, how fast, and at what token cost, with a pass rate over several runs. | `SMOKE_RUNS=5 SMOKE_MODEL=<model> npm run smoke` prints pass rate, timing and token totals, and `SMOKE_OUT_DIR` saves each run's events and diff. Today it is scored against the demo task; to score another task, change `EDITED_FILE` in `scripts/smoke-test.ts`. |
 | **Measure how fast a MicroVM starts.** The "Sandbox ready" number is submit-to-first-healthy-response on your account and region. | Run it a few times and read the rail, or run `node scripts/measure-startup.ts` for cold and warm cycles with median and p95 (it spends a little AWS money; see [the results](docs/DECISION_LOG.md)). |
 | **Teach or demo how an agent works.** Reasoning, commands and the patch appear live in three panels, which makes it easy to talk through what the agent did and why. | Run the control plane and share your screen. |
-| **Hand a reviewer a patch branch.** The agent never gets push rights. After you approve the diff, the control plane pushes it to a new branch of a private repo for someone else to review. | Set up the optional push target below. |
+| **Hand a reviewer a patch branch.** The agent never gets push rights. After you approve the diff, the control plane pushes it to a new branch of a private repo for someone else to review, or, for a repo you own, opens a draft pull request into it. | Set up the optional push target or draft PRs below. |
 | **Learn from the code.** It is a small, test-first TypeScript project: server-sent events, secret redaction, a request guard against cross-site calls, safe `git` use, and a Firecracker sandbox. | Start with [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md), then read the tests next to each module. |
 
 ## How it works
@@ -114,7 +114,7 @@ Read this before pointing it at code you care about.
 - **The sandbox has open internet access.** The agent and anything in the repository it runs (install scripts, tests) can contact any host. A malicious repository could try to send files out. Only run it on code you are willing to expose.
 - **The OpenRouter key is inside the sandbox while a run is going.** It reaches the VM through the run's startup payload (never baked into the image) because Codex needs it there. The agent, and so a malicious repository, could read it and send it somewhere. **Use a dedicated key with a spending limit, and rotate it if you ran untrusted code.**
 - **The key is kept out of logs, the UI and the stored run.** It is redacted from every stored event and every streamed byte, and tests assert it never appears in a request URL, header or runner body (`tests/unit/redaction.test.ts`, `tests/unit/microvm-launcher.test.ts`). The redaction matches the exact key text plus known token prefixes (`sk-or-`, `github_pat_`, `ghp_`), so it does not catch a transformed copy such as an encoded one.
-- **The GitHub push token never enters the sandbox.** It stays in the control plane; the VM is gone before any push.
+- **The GitHub push and PR tokens never enter the sandbox.** They stay in the control plane; the VM is gone before any push or PR.
 - **Simulated runs carry no data.** They are fictional and contact nothing.
 
 ## Safety choices
@@ -184,6 +184,26 @@ PUSH_TARGET_URL=https://github.com/<you>/<private-repo>
 
 Restart the control plane. Without a token the button is hidden.
 
+### Optional: open a draft PR into your own repo
+
+For repos you own, the diff panel can open a **draft pull request** into the repo the agent actually worked on, instead of pushing to the staging repo. It is opt-in and off unless both settings exist.
+
+1. Create a fine-grained token limited to **only the repos you list**, with **Contents: read and write** and **Pull requests: read and write**. Give it a short expiry. It is separate from `GIT_PUSH_TOKEN`, which keeps its single-repo scope.
+2. Add two lines to `.env` and restart the control plane:
+
+```
+GIT_PR_TOKEN=github_pat_...
+PR_REPOS=<owner>/<repo>,<owner>/<other-repo>
+```
+
+For a finished run on a repo in `PR_REPOS` (exact `owner/repo`, case-insensitive), the button reads **Open draft PR into owner/repo**. One click pushes `harness/<run id>` to that repo and opens a **draft** pull request into its default branch, with the task, run id, model and test outcome in the description. After success it becomes a link to the PR. Runs on any other repo keep **Push to branch**.
+
+- **Draft only.** It never marks the PR ready, never merges and never opens one by itself. One PR per run, and the branch is never forced.
+- **A request cannot choose its target.** The repo comes from the run and the list in `.env`, never from the browser.
+- **The token stays in the control plane,** like the push token, and is redacted from everything stored or shown. Error messages are fixed text and never contain it.
+- **If creating the PR fails after the branch was pushed** (a network error, for example), clicking again opens the PR without pushing a second time.
+- **Not supported:** forks (repos you do not own), private repos as a source, labels, reviewers and auto-merge.
+
 ## What to know
 
 - This is a prototype. It runs on your own machine against your own AWS account, and there is no hosted version, login or database.
@@ -240,7 +260,7 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fi
 CI runs the tests and the UI build on Ubuntu and Windows for every push and pull request. It uses no secrets and spends no AWS money.
 
 ```powershell
-npm test                  # unit tests, real-git push tests, runner tests (525 tests: 524 pass, 1 skipped)
+npm test                  # unit tests, real-git push tests, runner tests (578 tests: 577 pass, 1 skipped)
 npm run test:integration  # one real MicroVM; costs a few cents; set RUN_INTEGRATION=1 and MICROVM_IMAGE_ARN
 ```
 
