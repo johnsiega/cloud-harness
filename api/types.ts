@@ -5,6 +5,7 @@ export type RunRequest = {
   repoUrl: string;
   task: string;
   model?: string; // default "deepseek/deepseek-v4.1-flash"
+  testCommand?: string; // "skip", or a shell command run inside the VM; absent = auto-detect there
 };
 
 export type TraceEvent =
@@ -13,7 +14,7 @@ export type TraceEvent =
   | { type: "reasoning"; ts: number; text: string }
   | { type: "stdout"; ts: number; text: string }
   | { type: "stderr"; ts: number; text: string }
-  | { type: "test_result"; ts: number; exitCode: number; summary: string }
+  | { type: "test_result"; ts: number; exitCode: number; summary: string; skipped?: string }
   | { type: "diff"; ts: number; diff: string }
   | { type: "done"; ts: number; exitCode: number };
 

@@ -110,12 +110,12 @@ export function buildRunRequest(o: { imageArn: string; repoUrl: string; task: st
   };
 }
 
-export function buildRunnerPost(o: { endpoint: string; authToken: string; repoUrl: string; task: string }): RunnerPost {
+export function buildRunnerPost(o: { endpoint: string; authToken: string; repoUrl: string; task: string; testCommand?: string }): RunnerPost {
   return {
     url: `https://${o.endpoint.replace(/^https?:\/\//, "")}/`,
     method: "POST",
     headers: { "X-aws-proxy-auth": o.authToken, "X-aws-proxy-port": "8080", "Content-Type": "application/json" },
-    body: JSON.stringify({ repoUrl: o.repoUrl, task: o.task }),
+    body: JSON.stringify({ repoUrl: o.repoUrl, task: o.task, ...(o.testCommand ? { testCommand: o.testCommand } : {}) }),
   };
 }
 

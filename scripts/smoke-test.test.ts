@@ -283,6 +283,12 @@ describe("runner POST after restore", () => {
     assert.equal(p.headers["Content-Type"], "application/json");
     assert.deepEqual(JSON.parse(p.body), { repoUrl: "https://github.com/a/b", task: 'say "hi"' });
   });
+
+  test("adds testCommand to the body only when it is given", () => {
+    const base = { endpoint: "e.on.aws", authToken: "t", repoUrl: "https://github.com/a/b", task: "t" };
+    assert.deepEqual(JSON.parse(S.buildRunnerPost({ ...base, testCommand: "npm test" }).body), { repoUrl: base.repoUrl, task: "t", testCommand: "npm test" });
+    assert.deepEqual(JSON.parse(S.buildRunnerPost(base).body), { repoUrl: base.repoUrl, task: "t" });
+  });
 });
 
 describe("runner script: codex invocation", () => {

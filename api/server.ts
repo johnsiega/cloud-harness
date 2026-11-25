@@ -32,7 +32,13 @@ function validate(body: unknown): Validated {
   if (typeof b.repoUrl !== "string") return { ok: false, error: "repoUrl is required" };
   if (typeof b.task !== "string" || !b.task.trim()) return { ok: false, error: "task is required" };
   if (b.model !== undefined && typeof b.model !== "string") return { ok: false, error: "model must be a string" };
-  const req: RunRequest = { repoUrl: b.repoUrl, task: b.task, ...(b.model !== undefined ? { model: b.model as string } : {}) };
+  if (b.testCommand !== undefined && (typeof b.testCommand !== "string" || b.testCommand.length > 500)) return { ok: false, error: "testCommand must be a string of at most 500 characters" };
+  const testCommand = typeof b.testCommand === "string" ? b.testCommand.trim() : "";
+  const req: RunRequest = {
+    repoUrl: b.repoUrl, task: b.task,
+    ...(b.model !== undefined ? { model: b.model as string } : {}),
+    ...(testCommand ? { testCommand: testCommand.toLowerCase() === "skip" ? "skip" : testCommand } : {}),
+  };
   try {
     // Dry run of the real request builder: checks the GitHub-only URL, model id format and the 16 KB payload limit.
     buildRunRequest({ imageArn: "arn:validation-only", repoUrl: req.repoUrl, task: req.task, apiKey: "x".repeat(100), model: req.model });

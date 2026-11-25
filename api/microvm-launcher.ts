@@ -60,7 +60,7 @@ export function createMicrovmLauncher(o: {
     },
 
     async start(h, req) {
-      const post = buildRunnerPost({ endpoint: h.endpoint, authToken: h.authToken, repoUrl: req.repoUrl, task: req.task });
+      const post = buildRunnerPost({ endpoint: h.endpoint, authToken: h.authToken, repoUrl: req.repoUrl, task: req.task, testCommand: req.testCommand });
       const r = await call(post.url, { method: post.method, headers: post.headers, body: post.body });
       if (r.status !== 202) throw new Error(`runner rejected the task: HTTP ${r.status} ${await r.text()}`);
     },

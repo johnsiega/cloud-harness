@@ -39,6 +39,29 @@ describe("POST /runs", () => {
     assert.equal(s.store.get("run-1")!.request.model, "qwen/qwen3-coder");
   });
 
+  test("an optional testCommand is trimmed and kept on the stored request", async () => {
+    const s = setup();
+    assert.equal((await s.post({ ...GOOD, testCommand: "  npm run check  " })).status, 202);
+    assert.equal(s.store.get("run-1")?.request.testCommand, "npm run check");
+  });
+
+  test("'skip' in any letter case is stored as skip", async () => {
+    const s = setup();
+    await s.post({ ...GOOD, testCommand: " SKIP " });
+    assert.equal(s.store.get("run-1")?.request.testCommand, "skip");
+  });
+
+  test("a blank testCommand means auto-detect: no testCommand key is stored", async () => {
+    const s = setup();
+    await s.post({ ...GOOD, testCommand: "   " });
+    assert.ok(s.store.get("run-1"), "record must be stored");
+    assert.deepEqual(s.store.get("run-1")!.request, GOOD);
+  });
+
+  test("exactly 500 characters is accepted", async () => {
+    assert.equal((await setup().post({ ...GOOD, testCommand: "x".repeat(500) })).status, 202);
+  });
+
   test("invalid submissions answer 400 with an error string, and nothing is stored or started", async () => {
     const s = setup();
     const bad: unknown[] = [
@@ -58,6 +81,10 @@ describe("POST /runs", () => {
       { ...GOOD, task: "x".repeat(20000) },
       { ...GOOD, model: "bad model" },
       { ...GOOD, model: 7 },
+      { ...GOOD, testCommand: 42 },
+      { ...GOOD, testCommand: null },
+      { ...GOOD, testCommand: ["npm test"] },
+      { ...GOOD, testCommand: "x".repeat(501) },
     ];
     for (const b of bad) {
       const res = await s.post(b);

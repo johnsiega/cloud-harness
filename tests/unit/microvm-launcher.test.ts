@@ -125,6 +125,15 @@ describe("MicroVMLauncher.start / poll / terminate", () => {
     assert.deepEqual(JSON.parse(post.init.body), { repoUrl: REQ.repoUrl, task: REQ.task });
   });
 
+  test("start forwards the run's testCommand to the runner (and still never the API key)", async () => {
+    const s = setup();
+    await s.launcher.start(handle, { ...REQ, testCommand: "skip" });
+    const post = s.calls.find((c) => c.init?.method === "POST")!;
+    assert.ok(post, "a POST must be made");
+    assert.deepEqual(JSON.parse(post.init.body), { repoUrl: REQ.repoUrl, task: REQ.task, testCommand: "skip" });
+    assert.ok(!JSON.stringify(post).includes(KEY));
+  });
+
   test("start rejects with the HTTP status when the runner does not answer 202", async () => {
     const s = setup({ startStatus: 412 });
     await assert.rejects(s.launcher.start(handle, REQ), /412/);
