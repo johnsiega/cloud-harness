@@ -494,27 +494,28 @@
 
 # 
 
-# \- \[ ] Lambda MicroVM runs `echo hello` from the prebuilt image.
+# \- \[x] Lambda MicroVM runs `echo hello` from the prebuilt image. *(Met by stronger evidence: full runs from the image, VALIDATION.md sections 2 and 3. No literal `echo hello` was run.)*
 
-# \- \[ ] `codex exec` produces a diff on a public repo.
+# \- \[x] `codex exec` produces a diff on a public repo. *(VALIDATION.md sections 2, 3 and 8.)*
 
-# \- \[ ] SSE streams `sandbox\_resuming`, `sandbox\_ready`, `reasoning`, `stdout`, `diff`, `done`.
+# \- \[x] SSE streams `sandbox\_resuming`, `sandbox\_ready`, `reasoning`, `stdout`, `diff`, `done`. *(real integration test, VALIDATION.md section 8.)*
 
-# \- \[ ] React renders three panels and copies the diff.
+# \- \[ ] React renders three panels and copies the diff. *(Not ticked: the three panels were checked in a real browser for simulated runs, VALIDATION.md section 4, but the copy-diff button was not re-verified in Phase 5 and 6.)*
 
-# \- \[ ] Branch push works to the private repo with a scoped PAT.
+# \- \[x] Branch push works to the private repo with a scoped PAT. *(one real push, 2026-11-23, VALIDATION.md section 6.)*
 
-# \- \[ ] Startup measured and displayed: `submit → sandbox\_ready` and `submit → first token`.
+# \- \[ ] Startup measured and displayed: `submit → sandbox\_ready` and `submit → first token`. *(Partly met, so not ticked: `sandbox\_ready` is measured and shown. "First token" is really the first agent message, because Codex emits no reasoning items. VALIDATION.md sections 1 and 2.)*
 
-# \- \[ ] Simulation endpoint renders 100 concurrent traces.
+# \- \[x] Simulation endpoint renders 100 concurrent traces. *(Simulated, not real; checked in a real browser, VALIDATION.md section 4.)*
 
-# \- \[ ] All unit tests pass; one integration test passes.
+# \- \[x] All unit tests pass; one integration test passes. *(VALIDATION.md section 8.)*
 
-# \- \[ ] `VALIDATION.md` records actual numbers and discloses simulated vs real concurrency.
+# \- \[x] `VALIDATION.md` records actual numbers and discloses simulated vs real concurrency. *(docs/VALIDATION.md.)*
 
-# \- \[ ] `README` states data boundaries: repo contents go to OpenRouter; key never logged.
+# \- \[x] `README` states data boundaries: repo contents go to OpenRouter; key never logged. *(README "Data boundaries". It also says the key is inside the sandbox while a run is going, so "never logged" is qualified there.)*
 
-# \- \[ ] `kill-all.ts` terminates all MicroVMs.
+# \- \[x] `kill-all.ts` terminates all MicroVMs. *(real check, VALIDATION.md section 5.)*
 
-# \- \[ ] Decision log records every architectural choice and why.
+# \- \[x] Decision log records every architectural choice and why. *(Audited 2026-11-25; entries added for the choices that were missing.)*
 
+# \*\*Status note (2026-11-25).\*\* Section 1 claims "100+ concurrent agents ... real mode tested at 10–20 MicroVMs". The 100 is a simulation, and real mode was tested up to 4 MicroVMs, the limit of this account's 8 GB MicroVM memory quota. The 10–20 real-VM test is not done and needs a quota increase. See `docs/VALIDATION.md`.

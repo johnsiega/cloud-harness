@@ -25,13 +25,27 @@ This project explores that idea end to end: the isolation, how fast it starts, w
 
 ## Try it
 
-You need your own AWS account and an OpenRouter key; see [Run it yourself](#run-it-yourself). With the control plane running, open <http://127.0.0.1:3000>.
+To **see the UI with no AWS account and no key**, run the demo (below). To run a real agent you need your own AWS account and an OpenRouter key; see [Run it yourself](#run-it-yourself). With the control plane running, open <http://127.0.0.1:3000>.
 
 1. Keep the default repository (`https://github.com/jyvnn/hospital-queue`) or paste another **public** GitHub repo.
 2. Keep the default task or write your own, then press **Run task**.
 3. Watch the progress rail: **Sandbox ready**, **Agent**, **Tests**, **Patch**. The large number is how long the virtual machine took to become ready.
 4. Read along. **Reasoning** shows the agent's messages, **Terminal** shows the commands it ran, and **Diff** shows the change line by line.
 5. Press **Copy diff**, or **Push to branch** if you set up a push target. A pushed run shows a link to its branch. Each run can be pushed once.
+
+### Demo mode and the 100-run simulation
+
+Start the control plane with no key and no image and it runs in **demo mode**: only the simulation works, and real runs and pushes answer 503 with how to enable them.
+
+```powershell
+npm install
+npm run web:build
+npm start
+```
+
+Open <http://127.0.0.1:3000>, choose the **Simulation** tab and press **Start simulation** (100 runs by default, up to 200). To get demo mode even when you have keys set, use `$env:HARNESS_DEMO = "1"`.
+
+The simulation is **not real**. The control plane generates seeded, fictional events and streams all of them over one connection, each tagged `simulated: true`; no MicroVM is started, no model is called, and nothing can be pushed. It exists to show the UI holding 100 live traces at once. The numbers for real concurrency are different and much smaller; see [What we measured](#what-we-measured).
 
 ## Use cases
 
@@ -70,9 +84,12 @@ Small samples on one machine in `us-east-1`, so treat these as indications, not 
 |---|---|
 | Time until the VM is ready, started from the image (call to first healthy response) | 20 measured runs: median 1.9 s, p95 2.3 s, range 1.3 to 2.4 s. The page shows about 1.3 to 3 s, a little higher because it polls every 0.25 s and includes creating the access token. |
 | Time until a suspended VM is ready again (resume call to first healthy response) | 20 measured runs: median 1.8 s, p95 1.9 s. **Not faster than a cold start**, so there is no warm pool. |
-| Time until the agent's first message | about 7 to 15 s |
-| A whole run (clone, edit, install, tests, diff) | typically 15 to 50 s |
-| Model cost | about a fifth of a cent per run (AWS compute cost not yet measured) |
+| Time until the agent's first message | 13 real runs on 2026-11-25: median 6.8 s, range 4.4 to 45.7 s |
+| A whole run (clone, edit, install, tests, diff) | the same 13 runs: median 15.4 s, range 10.6 to 62.9 s |
+| Real runs at the same time | **4**, the most this account's 8 GB MicroVM memory quota allows (K = 2, 3 and 4 all succeeded; the fifth VM was refused). See [VALIDATION.md](docs/VALIDATION.md). |
+| Model cost | about a fifth of a cent per run (an estimate; AWS compute cost not measured) |
+
+Every number, with its sample size, date and source, is in [`docs/VALIDATION.md`](docs/VALIDATION.md), including what was **not** tested.
 
 We compared four models with five real runs each. "Correct" means one added comment directly above the right method and nothing else.
 
@@ -84,6 +101,17 @@ We compared four models with five real runs each. "Correct" means one added comm
 | `qwen/qwen3-coder-30b-a3b-instruct` | 2 of 5 | 51 s |
 
 The smallest model often read the file again and again and never made the edit, so we dropped it.
+
+## Data boundaries
+
+Read this before pointing it at code you care about.
+
+- **Your repository's code and your task text leave your machine.** The agent reads the files it needs and sends them, with your task, to OpenRouter and on to whichever model provider OpenRouter routes to. Their retention and training policies apply, not ours.
+- **The sandbox has open internet access.** The agent and anything in the repository it runs (install scripts, tests) can contact any host. A malicious repository could try to send files out. Only run it on code you are willing to expose.
+- **The OpenRouter key is inside the sandbox while a run is going.** It reaches the VM through the run's startup payload (never baked into the image) because Codex needs it there. The agent, and so a malicious repository, could read it and send it somewhere. **Use a dedicated key with a spending limit, and rotate it if you ran untrusted code.**
+- **The key is kept out of logs, the UI and the stored run.** It is redacted from every stored event and every streamed byte, and tests assert it never appears in a request URL, header or runner body (`tests/unit/redaction.test.ts`, `tests/unit/microvm-launcher.test.ts`). The redaction is an exact-text match on the key, so it does not catch a transformed copy.
+- **The GitHub push token never enters the sandbox.** It stays in the control plane; the VM is gone before any push.
+- **Simulated runs carry no data.** They are fictional and contact nothing.
 
 ## Safety choices
 
@@ -148,7 +176,9 @@ Restart the control plane. Without a token the button is hidden.
 - Only **public** GitHub repositories can be cloned, and the sandbox has open internet access.
 - A task changes code and runs tests. It does not judge whether the change is good, so read the diff.
 - Warm starts were measured and are **not** faster: resuming a suspended VM took about 1.8 s against about 1.9 s for a cold start from the image, so every run starts cold. The "ready" numbers exclude cloning the repo and model time. Details are in [the decision log](docs/DECISION_LOG.md).
-- With default account limits, launching a fifth MicroVM while four were suspended hit the account's memory limit. A real run of 100 VMs at once is not possible on a default account, and the planned 100-run simulation has not been built.
+- **Concurrency.** The MicroVM limit is memory, counting running and suspended VMs. This account is on the reduced new-account quota of 8 GB (the AWS default is 2,048 GB), so at most **4** real runs fit at once; the load test confirmed 4 and was refused at 5. The 100-run view is a **simulation**. Testing real runs at 10 to 20 VMs is **not done** and needs a quota increase from the AWS account owner.
+- **Emergency stop.** `node scripts/kill-all.ts` lists every MicroVM it would terminate and changes nothing; add `--yes` to terminate them.
+- **Not re-verified on a clean account.** The AWS setup and image-build steps below were followed once, on the author's account. They have not been repeated from scratch.
 - The "first reasoning token" metric isn't available, because the agent's output stream has no reasoning items. We report the first agent message instead.
 - It was built and tested on Windows with Git Bash and PowerShell.
 
@@ -156,8 +186,9 @@ Restart the control plane. Without a token the button is hidden.
 
 - [`Development_Process.md`](Development_Process.md): the full plan, with phases, the test-first rules and the completion checklist.
 - [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md): each design choice, the evidence behind it, and what it costs.
+- [`docs/VALIDATION.md`](docs/VALIDATION.md): every measured number with its sample size, date and source, simulated versus real concurrency, and the gaps.
 - [`docs/PHASE_4_PLAN.md`](docs/PHASE_4_PLAN.md): the plan for measuring warm starts, and how it ended.
-- [`docs/measurements/startup-cold-warm.json`](docs/measurements/startup-cold-warm.json): the raw cold and warm measurements.
+- [`docs/measurements/`](docs/measurements): the raw data (cold and warm starts, the real load run, the kill-all check, the browser check of the simulation).
 
 ## Built with
 
@@ -194,7 +225,7 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fi
 CI runs the tests and the UI build on Ubuntu and Windows for every push and pull request. It uses no secrets and spends no AWS money.
 
 ```powershell
-npm test                  # unit tests, real-git push tests, runner tests (296 pass, 1 skipped)
+npm test                  # unit tests, real-git push tests, runner tests (459 tests: 458 pass, 1 skipped)
 npm run test:integration  # one real MicroVM; costs a few cents; set RUN_INTEGRATION=1 and MICROVM_IMAGE_ARN
 ```
 

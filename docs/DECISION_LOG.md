@@ -58,3 +58,52 @@ Each entry records a choice, the evidence behind it, and what it costs. Dates ar
 
 ## Control-plane Node version (Phase 2)
 - The document specifies Node 24; development ran on Node 22.18 (native TypeScript type stripping, Hono 4). `engines` is `>=22.18`.
+
+## In-memory run store with a one-hour TTL (Phase 2)
+- **Decision:** runs live in a `Map` in the control plane. Records older than one hour are swept every minute.
+- **Why:** the specification asks for no database, and a run only needs to outlive its stream and a copy-diff or push click.
+- **Cost:** a restart loses every run, including one in progress. Its MicroVM is not terminated by the restart; AWS's own per-VM maximum duration is the backstop, and `scripts/kill-all.ts` is the manual one.
+
+## UI served from the control plane, same origin (Phase 2)
+- **Decision:** `npm run web:build` writes `dist/web`, and the Hono server serves it next to the API on `127.0.0.1:3000`, registered after the API routes.
+- **Why:** one origin means no CORS configuration at all, which lets the request guard refuse every cross-origin request outright (see the Phase 3 entry).
+- **Cost:** after a UI change you rebuild before `npm start`; `npm run web:dev` is available for UI work only.
+
+## AWS SDK in the control plane, AWS CLI in scripts (Phase 0 and 2)
+- **Decision:** `api/aws-microvms.ts` uses `@aws-sdk/client-lambda-microvms`. The image build in `scripts/smoke-test.ts` shells out to the AWS CLI.
+- **Why:** the image build runs once per image change and the CLI accepted the request shapes first; the control plane needs typed calls, injected clients and no subprocess per run.
+- **Cost:** two AWS code paths to keep in step, and the README's setup needs the CLI as well as the SDK.
+
+## x86_64 images (Phase 0)
+- **Decision:** the image is built for `X86_64` (`cpuConfigurations` in `scripts/smoke-test.ts`).
+- **Evidence and gap:** every measurement in this repo is on X86_64. The reason for choosing it over `ARM_64` was not written down at the time, so none is claimed here. The two architectures have separate memory quotas, both 8 GB on this account (Service Quotas, 2026-11-25).
+
+## Image hook settings (Phase 0 and 4)
+- **Decision:** the image enables the **run** hook and the **ready** hook on port 8080, and leaves the **resume** hook off.
+- **Why:** with no run hook, the runner never receives its payload and `/run` never fires (found the hard way in Phase 0). The Phase 4 measurement showed resume works with the resume hook disabled, so nothing needs it.
+- **Cost:** none known. If a future feature needs code to run on resume, the image must be rebuilt.
+
+## Simulation: seeded, one SSE connection, never real (Phase 5)
+- **Decision:** `POST /simulate?n=` (1 to 200) returns an id; `GET /simulate/:id/stream` sends every run's events over **one** SSE connection, each frame tagged with its `runId` and `simulated: true`, then a `simulation_done` event. One simulation at a time (409). A finished, expired or unknown id answers 204, which stops the browser's automatic reconnect.
+- **Why:** a real run of 100 MicroVMs is impossible on this account (8 GB memory quota, so 4 concurrent runs; see the Phase 5 measurement below), and the document asks for a UI test at 100. Simulated runs touch no store, launcher or push, so a simulated "done" run cannot be pushed to GitHub. Starts are jittered over 3 s and runs last 15 to 50 s, so there is a window where all 100 are alive together, and a generator test proves it. Startup draws from the measured 1.3 to 2.4 s range; about 10% of runs fail so the error states show.
+- **Cost:** the content is generic and fictional, so it shows the UI at scale and says nothing about real agent behaviour. A tab banner and the `simulated` flag in the data say so.
+
+## Demo mode (Phase 5)
+- **Decision:** with no `OPENROUTER_API_KEY` or `MICROVM_IMAGE_ARN`, or with `HARNESS_DEMO=1`, the control plane starts without any AWS client. `POST /runs` and push answer 503 with how to enable them, `/config` reports `demo: true`, and the UI opens on the Simulation tab.
+- **Why:** anyone who clones the public repo can see it working with no AWS account, and `HARNESS_DEMO=1` lets the owner run the demo with real keys present without any chance of a real run.
+- **Cost:** two start-up paths in `api/main.ts`. The 503 behaviour is unit-tested; the start-up wiring was checked by hand (the server started and answered).
+
+## Per-request timeout on every runner call (Phase 5)
+- **Decision:** health, start and poll requests to the in-VM runner each get a deadline (30 s by default) through `AbortSignal.timeout`.
+- **Why:** without it a fetch to a dead MicroVM can hang, leaving the run stuck until the 20-minute poll budget ends.
+- **Evidence and gap:** unit tests cover a hanging poll, start and health probe. On real AWS a run killed mid-run failed fast with an HTTP 502 on the next poll, so **the timeout itself has not been exercised against real AWS**.
+
+## kill-all: dry run by default (Phase 5)
+- **Decision:** `scripts/kill-all.ts` lists what it would terminate and changes nothing unless `--yes` is given. Terminations are 200 ms apart (the limit is 10 per second), throttling is retried with backoff, one failure does not stop the rest, and any failure gives a non-zero exit.
+- **Evidence (real AWS, 2026-11-25, `docs/measurements/kill-all-check.json`):** 2 idle VMs were listed, then terminated (both `TERMINATED`, exit 0). One real run killed mid-run ended as an error and its VM was `TERMINATED`.
+
+## Real concurrency: stepped, and capped by the memory quota (Phase 5)
+- **Decision:** `scripts/load-real.ts` starts K real runs together for K = 2, 3, 4, 5, kills all VMs and waits until they are gone between steps, and stops at the first step that is not fully successful.
+- **Why:** the MicroVM limit is memory, not a count, and **suspended VMs count too**. On this account "Max allocated X86_64 MicroVM memory" is 8 GB applied against a 2,048 GB default, so four 2 GB VMs fit. Waiting for `TERMINATED` between steps stops VMs that are still terminating from faking a quota failure.
+- **Result (`docs/measurements/load-real.json`):** K = 2, 3 and 4 fully succeeded and the fifth VM at K = 5 was refused (see VALIDATION.md). The highest K that fully succeeded was 4.
+- **Known flaw:** the refusal text ("The base maximum allocated memory limit has been reached for this account.") does not contain the word "quota", so the report labelled that stop a plain failure. The numbers are right and the label is wrong.
