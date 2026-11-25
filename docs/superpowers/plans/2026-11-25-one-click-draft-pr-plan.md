@@ -662,10 +662,19 @@ describe("POST /runs/:id/pr: secrets", () => {
     assert.ok(sent.includes("[REDACTED]"));
   });
   test("no error response ever contains the PR token", async () => {
+    // Status and reason first, so these checks cannot pass against a stub that never reaches the failing call.
     const leaky = setup({ deliver: async () => ({ ok: false, reason: "push_failed", error: `denied ${PR_TOKEN}`, log: `git push ${PR_TOKEN}` }) });
-    assert.ok(!(await (await leaky.pr()).text()).includes(PR_TOKEN));
+    const r1 = await leaky.pr();
+    const t1 = await r1.text();
+    assert.equal(r1.status, 502);
+    assert.equal(JSON.parse(t1).reason, "push_failed");
+    assert.ok(!t1.includes(PR_TOKEN), t1);
     const leaky2 = setup({ openDraft: async () => ({ ok: false, reason: "pr_failed", error: `bad ${PR_TOKEN}` }) });
-    assert.ok(!(await (await leaky2.pr()).text()).includes(PR_TOKEN));
+    const r2 = await leaky2.pr();
+    const t2 = await r2.text();
+    assert.equal(r2.status, 502);
+    assert.equal(JSON.parse(t2).reason, "pr_failed");
+    assert.ok(!t2.includes(PR_TOKEN), t2);
   });
 });
 
@@ -996,7 +1005,9 @@ Imports to add: `pushMode`, `type PushMode` from `./push-state.ts`; `repoSlug` f
 - [ ] **Step 3:** `npm test` and `npm run web:build` both green. Then commit `docs: one-click draft PR (README, decision log, EXPLAINED)`.
 - [ ] **Step 4: Scan everything that is about to be pushed.**
   ```bash
-  git diff origin/main..HEAD | grep -nE 'sk-or-|github_pat_|AKIA|[0-9]{12}|@my\.|@gmail|C:\\\\Users|C:/Users' || echo "scan clean"
+  git diff origin/main..HEAD | grep -nF -e 'C:\Users' -e 'C:/Users' -e 'sk-or-' -e 'github_pat_' -e 'AKIA' -e '@my.' -e '@gmail'
+  git diff origin/main..HEAD | grep -nE '[0-9]{12}'
+  # fixed strings on purpose: a regex with escaped backslashes is easy to get wrong between shells
   ```
   Look at each hit by eye. The test tokens (`github_pat_11PRROUTETOKEN...`, `github_pat_11PRCLIENTTOKEN...`) and the fixture account `111122223333` are known fakes.
 - [ ] **Step 5:** Push with `git push origin main`, then `gh run watch`, and report the CI result on Ubuntu and Windows.

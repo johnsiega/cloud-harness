@@ -253,7 +253,6 @@ Show the user the test list and the red output. Stop. Implement only after the u
 // Every value is one of the fixed strings below (no newlines), so the line protocol is safe. The user's own command never comes here.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 
 const has = (dir, f) => existsSync(join(dir, f));
 const read = (dir, f) => { try { return readFileSync(join(dir, f), "utf8"); } catch { return ""; } };
@@ -283,7 +282,8 @@ export function formatPlan(p) {
   return "skip" in p ? `\n\n${p.skip}\n` : `${p.install}\n${p.test}\n\n`;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Same guard style as scripts/smoke-test.ts:513 (a filename match works from any folder on every OS).
+if (process.argv[1] && /detect-tests\.mjs$/.test(process.argv[1].replace(/\\/g, "/"))) {
   if (!process.argv[2]) { console.error("usage: node detect-tests.mjs <repo-dir>"); process.exit(2); }
   process.stdout.write(formatPlan(detectTests(process.argv[2])));
 }
@@ -423,11 +423,14 @@ describe("runner script: test detection", () => {
   });
 
   test("files created by installs and tests never reach the diff (D2: snapshot before the test step)", () => {
-    const node = diffBlock(runScenario(makeRoot(), { origin: NODE_FILES }).lines);
+    const n = runScenario(makeRoot(), { origin: NODE_FILES });
+    assert.deepEqual(calls(n.read), ["npm ci", "npm test"], "the stubs that create the artifacts must actually have run");
+    const node = diffBlock(n.lines);
     assert.ok(node.includes(`diff --git a/${EDITED}`), node);
     assert.ok(!node.includes("node_modules/") && !node.includes(".test-cache"), node);
-    const py = diffBlock(runScenario(makeRoot(), { origin: PY_FILES }).lines);
-    assert.ok(!py.includes(".pytest_cache"), py);
+    const p = runScenario(makeRoot(), { origin: PY_FILES });
+    assert.deepEqual(calls(p.read), ["python3 -m pip install -q -r requirements.txt", "python3 -m pytest -q"]);
+    assert.ok(!diffBlock(p.lines).includes(".pytest_cache"));
   });
 
   test("the test command's own stdout goes to stderr, never into the event stream", () => {
@@ -1013,7 +1016,9 @@ Not checkable here: the grey rail step itself, because demo mode cannot run a re
 - [ ] **Step 3:** Commit `docs: per-run test command (README, decision log, EXPLAINED)`.
 - [ ] **Step 4: Scan everything that is about to be pushed.**
   ```bash
-  git diff origin/main..HEAD | grep -nE 'sk-or-|github_pat_|AKIA|[0-9]{12}|@my\.|@gmail|C:\\\\Users|C:/Users' || echo "scan clean"
+  git diff origin/main..HEAD | grep -nF -e 'C:\Users' -e 'C:/Users' -e 'sk-or-' -e 'github_pat_' -e 'AKIA' -e '@my.' -e '@gmail'
+  git diff origin/main..HEAD | grep -nE '[0-9]{12}'
+  # fixed strings on purpose: a regex with escaped backslashes is easy to get wrong between shells
   ```
   Also look at every matching line by eye. A test token such as `github_pat_11ROUTETOKEN...` or the fixture ARN `111122223333` is a known fake; say so in the report.
 - [ ] **Step 5:** Push with `git push origin main` (a public push; this plan covers it because the user asked for pushes after scanning). Then `gh run watch` and report the CI result on Ubuntu and Windows.
