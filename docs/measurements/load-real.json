@@ -1,0 +1,201 @@
+{
+  "measuredAt": "2026-11-25T04:49:44.673Z",
+  "report": {
+    "steps": [
+      {
+        "k": 2,
+        "runs": [
+          {
+            "index": 0,
+            "status": "done",
+            "durationMs": 62922,
+            "quota": false,
+            "startupMs": 1829,
+            "firstOutputMs": 45749,
+            "finalMessage": "Done. Added a one-line comment directly above `enabled()` in `app/Services/QueueEventLog.php:28`:\n\n```php\n// Run 1: Whether event logging is enabled (requires a configured DynamoDB events table).\npubl",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "6da77593-0ce6-4186-b854-4be59fefcf6b"
+          },
+          {
+            "index": 1,
+            "status": "done",
+            "durationMs": 60598,
+            "quota": false,
+            "startupMs": 1706,
+            "firstOutputMs": 45086,
+            "finalMessage": "Added the comment directly above `enabled()` in `app/Services/QueueEventLog.php:28`:\n\n```php\n/** Run 2: gate event logging on whether a DynamoDB events table is configured. */\npublic function enabled(",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "4da5c99e-af14-446d-b8a9-e67506f7ac9a"
+          }
+        ],
+        "ok": true,
+        "quota": false
+      },
+      {
+        "k": 3,
+        "runs": [
+          {
+            "index": 0,
+            "status": "done",
+            "durationMs": 32828,
+            "quota": false,
+            "startupMs": 1309,
+            "firstOutputMs": 16410,
+            "finalMessage": "Done. Added a one-line comment directly above `enabled()` in `app/Services/QueueEventLog.php`:\n\n```php\n// Run 1: the event log is active only when a DynamoDB events table is configured.\npublic functio",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "5619b1f5-573d-4b07-a254-8edc43701738"
+          },
+          {
+            "index": 1,
+            "status": "done",
+            "durationMs": 12386,
+            "quota": false,
+            "startupMs": 1337,
+            "firstOutputMs": 5150,
+            "finalMessage": "Added the comment directly above `enabled()` in `app/Services/QueueEventLog.php:28`:\n\n```php\n/** Run 2: returns whether the DynamoDB events table is configured. */\npublic function enabled(): bool\n```\n",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "30568c38-9d7d-4a2c-b687-8933066383d8"
+          },
+          {
+            "index": 2,
+            "status": "done",
+            "durationMs": 29286,
+            "quota": false,
+            "startupMs": 1736,
+            "firstOutputMs": 16856,
+            "finalMessage": "Added the comment in `app/Services/QueueEventLog.php:28`, directly above the `enabled()` method, starting with \"Run 3:\".",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "c2ca5d55-a302-417c-9033-15e7a108fa59"
+          }
+        ],
+        "ok": true,
+        "quota": false
+      },
+      {
+        "k": 4,
+        "runs": [
+          {
+            "index": 0,
+            "status": "done",
+            "durationMs": 10901,
+            "quota": false,
+            "startupMs": 1355,
+            "firstOutputMs": 4655,
+            "finalMessage": "Added the comment in `app/Services/QueueEventLog.php:28`:\n\n```php\n// Run 1: gate all event writes on whether a DynamoDB events table is configured.\npublic function enabled(): bool\n```",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "36924fcf-67e6-4703-8dcf-0cb08b53cc58"
+          },
+          {
+            "index": 1,
+            "status": "done",
+            "durationMs": 14688,
+            "quota": false,
+            "startupMs": 2237,
+            "firstOutputMs": 5350,
+            "finalMessage": "Added the comment at `app/Services/QueueEventLog.php:28`:\n\n```php\n    // Run 2: whether DynamoDB event logging is configured.\n    public function enabled(): bool\n```",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "fee913e8-0c65-409e-850f-7254f7e6edff"
+          },
+          {
+            "index": 2,
+            "status": "done",
+            "durationMs": 15433,
+            "quota": false,
+            "startupMs": 1260,
+            "firstOutputMs": 4390,
+            "finalMessage": "Added the comment above `enabled()` in `app/Services/QueueEventLog.php:28`:\n\n```php\n// Run 3: Reports whether the queue event log is configured and active.\n```\n\nNote: the other match, `app/Console/Com",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "fb59954f-6358-4cfd-996f-0c9771a69171"
+          },
+          {
+            "index": 3,
+            "status": "done",
+            "durationMs": 11125,
+            "quota": false,
+            "startupMs": 2243,
+            "firstOutputMs": 6818,
+            "finalMessage": "Done. Added the comment directly above `enabled()` in `app/Services/QueueEventLog.php:27`:\n\n```php\n// Run 4: gate event logging behind the DynamoDB events table config.\npublic function enabled(): bool",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "1b62e90e-76fc-4d71-a5c7-16af8fb9e023"
+          }
+        ],
+        "ok": true,
+        "quota": false
+      },
+      {
+        "k": 5,
+        "runs": [
+          {
+            "index": 0,
+            "status": "done",
+            "durationMs": 27275,
+            "quota": false,
+            "startupMs": 1302,
+            "firstOutputMs": 8038,
+            "finalMessage": "Added the comment directly above `enabled()` in `app/Services/QueueEventLog.php:27`:\n\n```php\n// Run 1: Check whether DynamoDB event logging is configured.\n```",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "470e8f1a-3d19-4039-b8f5-6d8895a7e504"
+          },
+          {
+            "index": 1,
+            "status": "done",
+            "durationMs": 14906,
+            "quota": false,
+            "startupMs": 1262,
+            "firstOutputMs": 8832,
+            "finalMessage": "Added the comment directly above `enabled()` in `app/Services/QueueEventLog.php:28`:\n\n```php\n/** Run 2: whether event logging is enabled for the configured table. */\npublic function enabled(): bool\n``",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "c56544d4-b115-449b-88ca-1475cbb53c46"
+          },
+          {
+            "index": 2,
+            "status": "done",
+            "durationMs": 10615,
+            "quota": false,
+            "startupMs": 1323,
+            "firstOutputMs": 6575,
+            "finalMessage": "Added the comment directly above `enabled()` in `app/Services/QueueEventLog.php:27`:\n\n```php\n// Run 3: checks whether the DynamoDB events table is configured.\npublic function enabled(): bool\n```",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "dc98ee4a-c5d8-4f7c-a80e-875a7335022e"
+          },
+          {
+            "index": 3,
+            "status": "done",
+            "durationMs": 19423,
+            "quota": false,
+            "startupMs": 1262,
+            "firstOutputMs": 5848,
+            "finalMessage": "Done. Added a one-line comment directly above `enabled()` in `app/Services/QueueEventLog.php:29`:\n\n```php\n// Run 4: gate event logging on the configured DynamoDB events table.\npublic function enabled(",
+            "diffAdded": 1,
+            "diffRemoved": 0,
+            "runId": "f957f670-d67b-4efe-a4ee-019b4daf0a04"
+          },
+          {
+            "index": 4,
+            "status": "error",
+            "durationMs": 1015,
+            "quota": false,
+            "error": "The base maximum allocated memory limit has been reached for this account.",
+            "runId": "2618593f-5fce-4e95-8ca0-922aa52de61d"
+          }
+        ],
+        "ok": false,
+        "quota": false
+      }
+    ],
+    "highestFullySucceeded": 4,
+    "stoppedBy": "failure"
+  }
+}
