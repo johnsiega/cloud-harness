@@ -1,0 +1,29 @@
+{
+  "what": "Real-browser check of the 100-run simulation (Plan step 5). SIMULATED data: no MicroVMs were started.",
+  "date": "2026-11-25",
+  "setup": "Built-in browser pane, viewport emulated at 1440x900, control plane started with HARNESS_DEMO=1 (demo mode), commit 9b17399 plus the uncommitted demo-mode change.",
+  "method": "A script in the page sampled the DOM every 100 ms and counted tiles by CSS class (.resuming/.ready/.running/.done/.error).",
+  "runs": [
+    {
+      "id": "A",
+      "note": "The browser pane was hidden for the first ~19 s, so requestAnimationFrame was paused and rendering stalled and then caught up when the pane was shown. Timing from this run is NOT used; only the end state is.",
+      "tiles": 100,
+      "maxTilesInProgress": 100,
+      "final": { "done": 97, "error": 3 }
+    },
+    {
+      "id": "B",
+      "note": "Pane visible throughout.",
+      "tiles": 100,
+      "maxTilesInProgress": 100,
+      "maxTilesReadyOrRunningAtOnce": 100,
+      "msFromClickUntilAll100TilesReadyOrRunning": 5948,
+      "final": { "done": 88, "error": 12 },
+      "medianStartupShownInUi": "1.9 s"
+    }
+  ],
+  "network": "Exactly one POST /simulate?n=100 (202) and one GET /simulate/<id>/stream per simulation; the stream request shows net::ERR_ABORTED only because the client closed it after simulation_done. No reconnect requests.",
+  "ui": "Clicking a finished tile opened that run in the Rail and the Reasoning, Terminal and Diff panels; the Simulated banner stayed visible; no push button appeared.",
+  "screenshot": "simulation-100-in-progress.jpg (taken during run A, 100 in progress)",
+  "not_checked": "Chrome/Firefox/Safari (only the built-in browser), mobile layout, accessibility tooling."
+}

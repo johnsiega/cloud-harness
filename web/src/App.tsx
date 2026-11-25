@@ -28,6 +28,11 @@ const STATUS: Record<string, string> = {
 export default function App() {
   const { view, meta, submit } = useRun();
   const [tab, setTab] = useState<"live" | "sim">("live");
+  const [demo, setDemo] = useState(false);
+  // Demo mode (no key or image): open on the simulation, and say why real runs are off.
+  useEffect(() => {
+    fetch("/config").then((r) => r.json()).then((c) => { if (c.demo) { setDemo(true); setTab("sim"); } }).catch(() => {});
+  }, []);
   const active = meta.submitting;
   const elapsed = useElapsed(meta.submittedAt, active);
 
@@ -50,7 +55,8 @@ export default function App() {
 
       {tab === "sim" ? <SimulationView /> : (
         <>
-      <RunForm busy={active} onSubmit={submit} />
+      {demo && <p className="note" role="note">Demo mode: real runs are disabled because no OpenRouter key or MicroVM image is configured. Use the Simulation tab.</p>}
+      <RunForm busy={active || demo} onSubmit={submit} />
       {meta.notice && <p className="note">{meta.notice}</p>}
       {meta.error && <p className="note error" role="alert">{meta.error}</p>}
 

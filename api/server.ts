@@ -17,6 +17,8 @@ export interface AppDeps {
   /** Present only when a push token and target are configured; otherwise the push route answers 503. */
   /** Test seam for the simulation routes; defaults to real timers. */
   sim?: SimDeps;
+  /** Demo mode: no key or image, so real runs and push answer 503 with `reason`; the simulation still works. */
+  demo?: { reason: string };
   push?: { token: string; targetUrl: string; deliver: (input: PushInput) => Promise<PushResult> };
 }
 
@@ -55,6 +57,14 @@ export function createApp(d: AppDeps): Hono {
     await next();
   });
 
+  // Demo mode: anything that would start a MicroVM or push to GitHub is refused, after the request guard.
+  if (d.demo) {
+    app.use("*", async (c, next) => {
+      if (c.req.method === "POST" && /^\/runs(\/|$)/.test(new URL(c.req.url).pathname)) return c.json({ error: `demo mode: ${d.demo!.reason}` }, 503);
+      await next();
+    });
+  }
+
   app.get("/health", (c) => c.json({ ok: true }));
 
   registerSimulation(app, d.sim);
@@ -72,6 +82,7 @@ export function createApp(d: AppDeps): Hono {
 
   // Tells the UI whether to show the push button. Never includes the token or the full URL.
   app.get("/config", (c) => {
+    if (d.demo) return c.json({ demo: true, pushEnabled: false });
     if (!d.push) return c.json({ pushEnabled: false });
     return c.json({ pushEnabled: true, pushTarget: new URL(d.push.targetUrl).pathname.replace(/^\/|\.git$/g, "") });
   });

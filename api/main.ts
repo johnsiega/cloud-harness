@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createAwsMicrovms } from "./aws-microvms.ts";
+import { resolveMode } from "./mode.ts";
 import { createMicrovmLauncher } from "./microvm-launcher.ts";
 import { createPatchDelivery } from "./patch-delivery.ts";
 import { createRedactor } from "./redact.ts";
@@ -21,13 +22,21 @@ export function loadDotEnv(path: string): void {
 
 export async function main(): Promise<void> {
   loadDotEnv(join(import.meta.dirname, "..", ".env"));
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const imageArn = process.env.MICROVM_IMAGE_ARN;
   const region = process.env.AWS_REGION ?? "us-east-1";
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set (env or .env)");
-  if (!imageArn) throw new Error("MICROVM_IMAGE_ARN is not set");
+  const mode = resolveMode(process.env);
 
   const store = createRunStore();
+  const webRoot = relative(process.cwd(), join(import.meta.dirname, "..", "dist", "web")).replace(/\\/g, "/");
+  if (mode.demo) {
+    // Demo mode: no AWS client, no key, no push. Only the simulation runs.
+    console.log(`DEMO MODE: ${mode.reason}`);
+    const app = createApp({ store, redact: createRedactor([]), demo: { reason: mode.reason }, startRun: () => {} });
+    app.use("/*", serveStatic({ root: webRoot }));
+    const srv = await startServer(app, { port: Number(process.env.PORT) || 3000 });
+    console.log(`control plane listening on http://${srv.address}:${srv.port}`);
+    return;
+  }
+  const { apiKey, imageArn } = mode;
   setInterval(() => store.sweep(), 60_000).unref();
   const redact = createRedactor([apiKey, process.env.GIT_PUSH_TOKEN ?? ""]);
   const launcher = createMicrovmLauncher({ aws: createAwsMicrovms({ region }), imageArn, apiKey, region });
@@ -39,7 +48,7 @@ export async function main(): Promise<void> {
   console.log(push ? `push enabled: harness/<runId> branches go to ${pushTarget}` : "push disabled (set GIT_PUSH_TOKEN in .env to enable)");
   const app = createApp({ store, redact, push, startRun: (id) => { void executeRun({ store, launcher, redact, now: Date.now, sleep }, id); } });
   // Same origin for UI and API (npm run web:build first). Registered after the API routes, so /runs/* always wins.
-  app.use("/*", serveStatic({ root: relative(process.cwd(), join(import.meta.dirname, "..", "dist", "web")).replace(/\\/g, "/") }));
+  app.use("/*", serveStatic({ root: webRoot }));
   const srv = await startServer(app, { port: Number(process.env.PORT) || 3000 });
   console.log(`control plane listening on http://${srv.address}:${srv.port}`);
 }
