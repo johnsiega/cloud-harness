@@ -68,7 +68,8 @@ export interface AwsMicrovms {
   suspend(microvmId: string): Promise<void>;
   resume(microvmId: string): Promise<void>;
   describe(microvmId: string): Promise<{ state: string; endpoint?: string }>;
-  listByImage(imageArn: string): Promise<{ microvmId: string; state: string }[]>;
+  /** Every MicroVM in the account and Region, or only those from one image. Follows pagination. */
+  list(imageArn?: string): Promise<{ microvmId: string; state: string }[]>;
 }
 
 export type FetchLike = (

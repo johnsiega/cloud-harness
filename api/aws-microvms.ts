@@ -7,8 +7,8 @@ import {
 } from "@aws-sdk/client-lambda-microvms";
 import type { AwsMicrovms } from "./types.ts";
 
-export function createAwsMicrovms(o: { region: string }): AwsMicrovms {
-  const client = new LambdaMicrovmsClient({ region: o.region });
+export function createAwsMicrovms(o: { region: string; client?: { send(command: any): Promise<any> } }): AwsMicrovms {
+  const client = o.client ?? new LambdaMicrovmsClient({ region: o.region });
   return {
     async run(input) {
       const r = await client.send(new RunMicrovmCommand(input));
@@ -34,11 +34,11 @@ export function createAwsMicrovms(o: { region: string }): AwsMicrovms {
       const r = await client.send(new GetMicrovmCommand({ microvmIdentifier: microvmId }));
       return { state: String(r.state), endpoint: r.endpoint };
     },
-    async listByImage(imageArn) {
+    async list(imageArn) {
       const out: { microvmId: string; state: string }[] = [];
       let nextToken: string | undefined;
       do {
-        const r = await client.send(new ListMicrovmsCommand({ imageIdentifier: imageArn, nextToken }));
+        const r = await client.send(new ListMicrovmsCommand({ ...(imageArn ? { imageIdentifier: imageArn } : {}), nextToken }));
         for (const m of r.items ?? []) if (m.microvmId) out.push({ microvmId: m.microvmId, state: String(m.state) });
         nextToken = r.nextToken;
       } while (nextToken);
