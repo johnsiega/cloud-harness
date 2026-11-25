@@ -4,7 +4,7 @@ import type { RunRequest, TraceEvent } from "../../api/types.ts";
 
 const EVENT_TYPES = ["sandbox_resuming", "sandbox_ready", "reasoning", "stdout", "stderr", "test_result", "diff", "done"] as const;
 
-export type RunMeta = { runId?: string; submitting: boolean; error?: string; notice?: string; submittedAt?: number };
+export type RunMeta = { runId?: string; submitting: boolean; error?: string; notice?: string; submittedAt?: number; repoUrl?: string };
 
 // One POST to start the run, then one EventSource for the parsed trace. Every event goes through the pure reducer.
 export function useRun() {
@@ -42,7 +42,7 @@ export function useRun() {
   const submit = useCallback(async (req: RunRequest) => {
     close();
     setView(initialView());
-    setMeta({ submitting: true, submittedAt: Date.now() });
+    setMeta({ submitting: true, submittedAt: Date.now(), repoUrl: req.repoUrl });
     try {
       const res = await fetch("/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(req) });
       const body = await res.json();

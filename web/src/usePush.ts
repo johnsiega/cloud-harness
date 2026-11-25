@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
-import { initialPush, reducePush, type PushConfig } from "./push-state.ts";
+import { initialPush, reducePush, type PushConfig, type PushMode } from "./push-state.ts";
 
 // Loads whether push is configured, and runs the push. Remounted per run (keyed by run id), so state never leaks between runs.
 export function usePush(runId: string | undefined) {
@@ -15,16 +15,16 @@ export function usePush(runId: string | undefined) {
     return () => { live = false; };
   }, []);
 
-  const push = useCallback(async () => {
+  const push = useCallback(async (mode: PushMode) => {
     if (!runId) return;
     dispatch({ type: "start" });
     try {
-      const res = await fetch(`/runs/${runId}/push`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      const res = await fetch(`/runs/${runId}/${mode === "pr" ? "pr" : "push"}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
       const body = await res.json().catch(() => ({}));
-      if (res.ok) dispatch({ type: "success", branch: body.branch, commit: body.commit, url: body.url });
-      else dispatch({ type: "failure", status: res.status, body });
+      if (res.ok) dispatch({ type: "success", branch: body.branch, commit: body.commit, url: body.url, number: body.number });
+      else dispatch({ type: "failure", status: res.status, mode, body });
     } catch {
-      dispatch({ type: "failure", status: 0, body: {} });
+      dispatch({ type: "failure", status: 0, mode, body: {} });
     }
   }, [runId]);
 

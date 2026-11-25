@@ -61,7 +61,7 @@ export default function App() {
       {meta.error && <p className="note error" role="alert">{meta.error}</p>}
 
       <RunRail view={view} />
-      <TracePanels view={view} runId={meta.runId} />
+      <TracePanels view={view} runId={meta.runId} repoUrl={meta.repoUrl} />
         </>
       )}
     </main>

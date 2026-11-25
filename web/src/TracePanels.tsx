@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { canPush, pushLabel, shortSha } from "./push-state.ts";
+import { repoSlug } from "../../api/repo-allowlist.ts";
+import { pushLabel, pushMode, shortSha } from "./push-state.ts";
 import { diffLines, formatMs, testTone, type RunView } from "./run-view.ts";
 import { usePush } from "./usePush.ts";
 
@@ -52,28 +53,32 @@ function TerminalPanel({ view }: { view: RunView }) {
   );
 }
 
-function PushControl({ view, runId }: { view: RunView; runId: string | undefined }) {
+function PushControl({ view, runId, repoUrl }: { view: RunView; runId: string | undefined; repoUrl: string | undefined }) {
   const { cfg, state, push } = usePush(runId);
-  if (!canPush(view, cfg, runId)) return null;
+  const mode = pushMode(view, cfg, runId, repoUrl);
+  if (!mode) return null;
   // Only ever link to GitHub, whatever the server says.
   const safeUrl = state.url && state.url.startsWith("https://github.com/") ? state.url : undefined;
+  const done = mode === "pr" ? `Draft PR #${state.number}` : `Pushed ${state.branch}`;
   return (
     <div className="pushbar">
       {state.status === "pushed" ? (
         <span className="pushed">
-          {safeUrl ? <a href={safeUrl} target="_blank" rel="noreferrer">{`Pushed ${state.branch}`}</a> : `Pushed ${state.branch}`}
-          {shortSha(state.commit) && <code>{shortSha(state.commit)}</code>}
+          {safeUrl ? <a href={safeUrl} target="_blank" rel="noreferrer">{done}</a> : done}
+          {mode === "branch" && shortSha(state.commit) && <code>{shortSha(state.commit)}</code>}
         </span>
       ) : (
-        <button type="button" className="push" onClick={push} disabled={state.status === "pushing"}>{pushLabel(state)}</button>
+        <button type="button" className="push" onClick={() => push(mode)} disabled={state.status === "pushing"}>{pushLabel(state, mode)}</button>
       )}
-      {cfg?.pushTarget && state.status !== "pushed" && <span className="target">to {cfg.pushTarget}</span>}
+      {state.status !== "pushed" && (mode === "pr"
+        ? <span className="target">into {repoSlug(repoUrl!)}</span>
+        : cfg?.pushTarget && <span className="target">to {cfg.pushTarget}</span>)}
       {state.status === "failed" && <p className="push-error" role="alert">{state.error}</p>}
     </div>
   );
 }
 
-function DiffPanel({ view, runId }: { view: RunView; runId: string | undefined }) {
+function DiffPanel({ view, runId, repoUrl }: { view: RunView; runId: string | undefined; repoUrl: string | undefined }) {
   const [copied, setCopied] = useState(false);
   const lines = view.diff ? diffLines(view.diff) : [];
   const files = lines.filter((l) => l.kind === "meta" && l.text.startsWith("diff --git")).map((l) => l.text.replace(/^diff --git a\/(.+) b\/.+$/, "$1"));
@@ -90,7 +95,7 @@ function DiffPanel({ view, runId }: { view: RunView; runId: string | undefined }
         {view.diff ? <button type="button" className="ghost" onClick={copy}>{copied ? "Copied" : "Copy diff"}</button> : null}
       </header>
       <div className="body" tabIndex={0}>
-        <PushControl key={runId} view={view} runId={runId} />
+        <PushControl key={runId} view={view} runId={runId} repoUrl={repoUrl} />
         {view.diff === undefined && <p className="empty">The patch appears here when the run finishes.</p>}
         {view.diff !== undefined && view.diff.trim() === "" && <p className="empty">The run finished without changing any files.</p>}
         {files.length > 0 && <p className="files">{files.join(", ")}</p>}
@@ -103,12 +108,12 @@ function DiffPanel({ view, runId }: { view: RunView; runId: string | undefined }
   );
 }
 
-export function TracePanels({ view, runId }: { view: RunView; runId?: string }) {
+export function TracePanels({ view, runId, repoUrl }: { view: RunView; runId?: string; repoUrl?: string }) {
   return (
     <div className="panels">
       <ReasoningPanel view={view} />
       <TerminalPanel view={view} />
-      <DiffPanel view={view} runId={runId} />
+      <DiffPanel view={view} runId={runId} repoUrl={repoUrl} />
     </div>
   );
 }
