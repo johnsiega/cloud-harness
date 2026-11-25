@@ -74,9 +74,9 @@ Browser ──► Control plane ──► AWS Lambda MicroVM ──► Codex CLI
      └── live events (SSE) ◄── polls the VM every 0.5 s ◄── results
 ```
 
-- **The sandbox.** Each run gets its own AWS Lambda MicroVM, started from a prebuilt image that already contains Node, PHP, Composer, git and the Codex CLI. The VM is terminated when the run finishes.
+- **The sandbox.** Each run gets its own AWS Lambda MicroVM, started from a prebuilt image that already contains Node, PHP, Composer, Python (with pytest), git and the Codex CLI. The VM is terminated when the run finishes.
 - **The agent.** [Codex CLI](https://github.com/openai/codex) runs headless inside the VM and talks to a low-cost model through OpenRouter. The default is `deepseek/deepseek-v4.1-flash`.
-- **The loop.** Clone the repo, let the agent edit, run the repo's own test command, and capture a binary-safe `git diff`.
+- **The loop.** Clone the repo, let the agent edit, run the repo's tests (detected for you, or the command you type), and capture a binary-safe `git diff`.
 - **The stream.** The control plane polls the VM for new events, parses them into a small set of event types, and streams them to the page over server-sent events. Every event is scrubbed for secrets first.
 - **The patch.** To push, the control plane clones the repo fresh at the exact commit the sandbox started from, applies the diff, commits as "Cloud harness", and pushes `harness/<run id>`. The VM no longer exists by then, and the push token never goes near it.
 
@@ -163,6 +163,16 @@ npm start
 
 Open <http://127.0.0.1:3000>. Rebuild the image whenever anything in `scripts/runner/` changes.
 
+### Test command
+
+The form has an optional **Test command** box. It decides what runs after the agent has edited the code.
+
+- **Blank (auto-detect).** The first match wins: PHP (`composer.json`: Composer install, then `php artisan test`, or PHPUnit when there is no `artisan`); Node (a `package.json` with a real `test` script: `npm ci`, falling back to `npm install`, then `npm test`); Python (pytest evidence such as `pytest.ini`, `conftest.py`, a `[tool.pytest` section in `pyproject.toml`, or `tests/test_*.py`: a pip install of `requirements.txt` if there is one, then `python3 -m pytest -q`). Anything else is **Tests not run: no tests found**.
+- **`skip`.** Skips the test step.
+- **Anything else** is run as the test command, inside the sandbox, with the same trust as the task text. At most 500 characters.
+
+Node and Python dependency installs are limited to 180 seconds. If one fails or times out, the tests are not run ("dependencies could not be installed"). A step that is not run shows as a **grey "Tests not run"** with the reason. It never shows green, but it does not turn a good diff red either, so the run still ends done and the diff stays pushable. A test command that really fails still ends the run in error. Other languages (Go, Rust, Java) are not detected: type a command for those.
+
 ### Optional: push patches to a branch
 
 Create a **private** GitHub repository that contains the same history as the repo you run against, for example a copy of its `main`. Turn GitHub Actions off in it. Create a fine-grained token limited to that one repository with **Contents: read and write**, and add two lines to `.env`:
@@ -230,7 +240,7 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fi
 CI runs the tests and the UI build on Ubuntu and Windows for every push and pull request. It uses no secrets and spends no AWS money.
 
 ```powershell
-npm test                  # unit tests, real-git push tests, runner tests (466 tests: 465 pass, 1 skipped)
+npm test                  # unit tests, real-git push tests, runner tests (525 tests: 524 pass, 1 skipped)
 npm run test:integration  # one real MicroVM; costs a few cents; set RUN_INTEGRATION=1 and MICROVM_IMAGE_ARN
 ```
 

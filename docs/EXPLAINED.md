@@ -59,13 +59,13 @@ Browser ──► Control plane ──► AWS Lambda MicroVM ──► Codex CLI
 2. **The control plane validates it.** Only `https://github.com/<owner>/<repo>` URLs, a sane model id, and a payload under 16 KB are accepted (`validate()` in `api/server.ts`, reusing `buildRunRequest` from `scripts/smoke-test.ts`). A second identical request while the first is still active gets 409.
 3. **A run record is created** in an in-memory store (`api/run-store.ts`), and `executeRun` starts in the background (`api/run-controller.ts`). The page gets an id and opens an `EventSource` on `/runs/<id>/stream`.
 4. **The launcher starts a MicroVM** (`api/microvm-launcher.ts`, `api/aws-microvms.ts`): it calls AWS `RunMicrovm` with the image, the network connectors, and a **run hook payload** containing the OpenRouter key and model. It creates an access token, then probes `https://<endpoint>/health` every 250 ms until the VM answers. That time is the "Sandbox ready" number (typically 1.3 to 2.4 s).
-5. **The control plane tells the VM to start the task** (`POST /` with `{ repoUrl, task }`). Inside the VM a small HTTP server, the **runner** (`scripts/runner/server.mjs`), starts `run-task.sh`.
-6. **`run-task.sh` does the work:** `git clone`, records the base commit, runs `codex exec` with the task, runs the project's own test command, then captures `git diff --binary`. Everything it prints is JSON lines plus a `__DIFF_START__ … __DIFF_END__` block.
+5. **The control plane tells the VM to start the task** (`POST /` with `{ repoUrl, task }`, plus `testCommand` when you typed one). Inside the VM a small HTTP server, the **runner** (`scripts/runner/server.mjs`), starts `run-task.sh`.
+6. **`run-task.sh` does the work:** `git clone`, records the base commit, runs `codex exec` with the task, captures `git diff --binary`, then runs the tests: the command you typed, or one detected by `detect-tests.mjs` (PHP, Node or Python), or nothing ("tests not run", with a reason). Taking the diff first keeps `node_modules` and test caches out of the patch. Everything it prints is JSON lines plus a `__DIFF_START__ … __DIFF_END__` block.
 7. **The control plane polls the VM** (`GET /events?since=N`) every 500 ms. Lambda MicroVMs have no stdout or exit-code API, so polling the runner is the only way out (decision: "Event transport").
 8. **The event parser** (`api/event-parser.ts`) turns that raw output into a small set of typed events: `sandbox_resuming`, `sandbox_ready`, `reasoning`, `stdout`, `stderr`, `test_result`, `diff`, `done`. It is careful with partial lines and markers split across chunks.
 9. **Every event is redacted** (`api/redact.ts`), stored, and streamed to the browser as SSE (`api/sse.ts`).
 10. **The browser renders it** with a pure reducer (`web/src/run-view.ts`) into three panels (Reasoning, Terminal, Diff) and a four-step progress rail.
-11. **The outcome is decided.** A run is `error` if the tests exit non-zero, Codex exits non-zero, or the diff is empty. Otherwise `done`.
+11. **The outcome is decided.** A run is `error` if the tests exit non-zero, Codex exits non-zero, or the diff is empty. Otherwise `done`. A test step that was not run counts as exit 0 (so it cannot turn a good diff red) but is shown as a grey "Tests not run" with its reason, never green.
 12. **The VM is terminated, always** (`finally` in `executeRun`), even if something failed.
 13. **If you press "Push to branch":** the control plane clones the source repo fresh at the **exact base commit**, applies the diff, commits as "Cloud harness" and pushes `harness/<runId>` to the private repo (`api/patch-delivery.ts`). The VM is already gone and never sees the GitHub token.
 
@@ -96,14 +96,14 @@ Browser ──► Control plane ──► AWS Lambda MicroVM ──► Codex CLI
 `App.tsx` (tabs), `RunForm`, `RunRail`, `TracePanels`, `SimulationView`, plus pure logic that has the unit tests: `run-view.ts` (state for one run), `simulation-view.ts` (state for 100 runs, summary, per-frame batching), `push-state.ts`. Hooks `useRun`, `useSimulation`, `usePush` connect them to the network.
 
 ### `scripts/`
-- `runner/` (`server.mjs`, `run-task.sh`, `Dockerfile`): what runs **inside** the VM.
+- `runner/` (`server.mjs`, `run-task.sh`, `detect-tests.mjs`, `Dockerfile`): what runs **inside** the VM.
 - `smoke-test.ts`: builds the image (via the AWS CLI), runs smoke tests and compares models.
 - `measure-startup.ts`: cold vs warm start measurement.
 - `kill-all.ts`: emergency stop for every MicroVM (dry run by default).
 - `load-real.ts`: stepped real concurrency test.
 
 ### `tests/` and CI
-466 tests (465 pass, 1 skipped, the real-AWS integration test, which only runs with `RUN_INTEGRATION=1`). Tests live in `tests/unit`, `tests/simulation`, `tests/integration`, plus `scripts/*.test.ts`. CI (`.github/workflows/ci.yml`) runs the tests and the UI build on Ubuntu and Windows with no secrets and read-only permissions.
+525 tests (524 pass, 1 skipped, the real-AWS integration test, which only runs with `RUN_INTEGRATION=1`). Tests live in `tests/unit`, `tests/simulation`, `tests/integration`, plus `scripts/*.test.ts`. CI (`.github/workflows/ci.yml`) runs the tests and the UI build on Ubuntu and Windows with no secrets and read-only permissions.
 
 ---
 
@@ -192,7 +192,7 @@ Full tables, samples and sources are in [`VALIDATION.md`](VALIDATION.md). Highli
 | Real runs at once | **4** succeeded (K=2, 3, 4); the 5th VM was refused by the 8 GB memory limit |
 | A real run (13 runs, started 2 to 5 at a time) | first output median 6.8 s, total median 15.4 s |
 | 100 concurrent runs | **simulated**; the browser showed 100 in progress at once |
-| Tests | 466 (465 pass, 1 skipped), green on Ubuntu and Windows |
+| Tests | 525 (524 pass, 1 skipped), green on Ubuntu and Windows once CI confirms the push |
 
 **Reading the numbers correctly**
 - "Ready" excludes repo clone and model time, which dominate a real run.
@@ -225,7 +225,7 @@ Full tables, samples and sources are in [`VALIDATION.md`](VALIDATION.md). Highli
 
 ```powershell
 npm install
-npm test                      # 466 tests, no AWS needed
+npm test                      # 525 tests, no AWS needed
 npm run web:build             # build the UI
 npm start                     # real mode if keys/image set, otherwise demo mode
 $env:HARNESS_DEMO = "1"; npm start   # force demo mode
@@ -248,7 +248,7 @@ npm run test:integration        # one real MicroVM (RUN_INTEGRATION=1, spends a 
 - Measured **MicroVM startup (median 1.9 s over 20 runs)** and **resume (1.8 s)**, set a decision gate in advance, and **declined to build a warm pool** when the data failed it.
 - Ran **up to 4 concurrent real agent runs** and diagnosed the account's **8 GB MicroVM memory quota** as the limit; built a **seeded 100-run simulated load view** (one SSE connection, per-frame batching) to test the UI at scale, clearly labelled as simulated.
 - Found and fixed a **cross-site request vulnerability** (a web page could start a VM through a localhost API) with Host/Origin/content-type checks; kept API and GitHub tokens out of logs and out of the sandbox.
-- Delivered **466 automated tests, built test-first**, with CI on Ubuntu and Windows, plus a validation document where every number has its sample size, date and source.
+- Delivered **525 automated tests, built test-first**, with CI on Ubuntu and Windows, plus a validation document where every number has its sample size, date and source.
 
 ### Claims to avoid or qualify
 - ❌ "Runs 100+ concurrent agents." ✅ "Renders 100 **simulated** concurrent runs; real mode tested to 4 under the account quota."
