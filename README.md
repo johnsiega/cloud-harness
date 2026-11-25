@@ -84,8 +84,8 @@ Small samples on one machine in `us-east-1`, so treat these as indications, not 
 |---|---|
 | Time until the VM is ready, started from the image (call to first healthy response) | 20 measured runs: median 1.9 s, p95 2.3 s, range 1.3 to 2.4 s. The page shows about 1.3 to 3 s, a little higher because it polls every 0.25 s and includes creating the access token. |
 | Time until a suspended VM is ready again (resume call to first healthy response) | 20 measured runs: median 1.8 s, p95 1.9 s. **Not faster than a cold start**, so there is no warm pool. |
-| Time until the agent's first message | 13 real runs on 2026-11-25: median 6.8 s, range 4.4 to 45.7 s |
-| A whole run (clone, edit, install, tests, diff) | the same 13 runs: median 15.4 s, range 10.6 to 62.9 s |
+| Time until the agent's first message | 13 real runs on 2026-11-25, started 2 to 5 at a time: median 6.8 s, range 4.4 to 45.7 s |
+| A whole run (clone, edit, install, tests, diff) | the same 13 runs, started 2 to 5 at a time, so not comparable to a single run: median 15.4 s, range 10.6 to 62.9 s |
 | Real runs at the same time | **4**, the most this account's 8 GB MicroVM memory quota allows (K = 2, 3 and 4 all succeeded; the fifth VM was refused). See [VALIDATION.md](docs/VALIDATION.md). |
 | Model cost | about a fifth of a cent per run (an estimate; AWS compute cost not measured) |
 

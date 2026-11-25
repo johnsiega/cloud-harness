@@ -1,0 +1,17 @@
+{
+  "what": "Real-AWS integration test: one MicroVM through the real control plane (HTTP to SSE). Output line copied from the test run.",
+  "date": "2026-11-25",
+  "command": "RUN_INTEGRATION=1 AWS_PROFILE=<profile> MICROVM_IMAGE_ARN=<newest image> npm run test:integration",
+  "commit": "d783350",
+  "image": "hq-smoke-1795435760936",
+  "logged": {
+    "status": "done",
+    "startupMs": 1819,
+    "firstTokenMs": 4903,
+    "events": 10,
+    "diffBytes": 406
+  },
+  "testDurationMs": 11576,
+  "result": "1 test, 1 pass, 0 fail, 0 skipped",
+  "note": "The task added an HTML comment as the first line of README.md on jyvnn/hospital-queue. Nothing was pushed. N=1."
+}

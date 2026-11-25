@@ -494,13 +494,13 @@
 
 # 
 
-# \- \[x] Lambda MicroVM runs `echo hello` from the prebuilt image. *(Met by stronger evidence: full runs from the image, VALIDATION.md sections 2 and 3. No literal `echo hello` was run.)*
+# \- \[ ] Lambda MicroVM runs `echo hello` from the prebuilt image. *(Not ticked, because no literal `echo hello` run exists. The intent is met by stronger evidence: full runs from the image, VALIDATION.md sections 2 and 3. No literal `echo hello` was run.)*
 
 # \- \[x] `codex exec` produces a diff on a public repo. *(VALIDATION.md sections 2, 3 and 8.)*
 
 # \- \[x] SSE streams `sandbox\_resuming`, `sandbox\_ready`, `reasoning`, `stdout`, `diff`, `done`. *(real integration test, VALIDATION.md section 8.)*
 
-# \- \[ ] React renders three panels and copies the diff. *(Not ticked: the three panels were checked in a real browser for simulated runs, VALIDATION.md section 4, but the copy-diff button was not re-verified in Phase 5 and 6.)*
+# \- \[x] React renders three panels and copies the diff. *(VALIDATION.md section 4: three panels and the Copy diff button checked in a real browser on a simulated run. The clipboard contents could not be read back there.)*
 
 # \- \[x] Branch push works to the private repo with a scoped PAT. *(one real push, 2026-11-23, VALIDATION.md section 6.)*
 

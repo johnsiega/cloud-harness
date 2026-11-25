@@ -22,7 +22,7 @@ What was actually measured, with how many samples, when, how, and where the raw 
 
 | What | Value | N | Date | Source |
 |---|---|---|---|---|
-| Integration test: startup / first agent message / test duration | 1,819 ms / 4,903 ms / 11.6 s | 1 | 2026-11-25 | `npm run test:integration` output (not stored as a file) |
+| Integration test: startup / first agent message / test duration | 1,819 ms / 4,903 ms / 11.6 s | 1 | 2026-11-25 | [`measurements/integration-2026-11-25.json`](measurements/integration-2026-11-25.json) |
 | Run in which the VM was killed mid-run | startup 1,865 ms; ended as an error 11 s after the kill (see §5) | 1 | 2026-11-25 | [`measurements/kill-all-check.json`](measurements/kill-all-check.json) |
 
 **"First output" is not "first reasoning token".** Codex's `--json` stream has no reasoning items, so that metric is not available. The figure here is the first agent message, observed at the control plane's 500 ms poll resolution (and 1 s in the load script's own polling), measured from the submit call.
@@ -50,7 +50,7 @@ What was actually measured, with how many samples, when, how, and where the raw 
 Nothing in this section was run on MicroVMs. `POST /simulate?n=100` generates seeded events (startup drawn from 1.3 to 2.4 s, run times 15 to 50 s, about 10% failing) and sends them over one SSE connection, each frame tagged `simulated: true`. The UI shows a permanent "Simulated: no MicroVMs are started" banner.
 
 - **Unit tests:** the generator (same seed same plan, all 100 runs alive together in one window, durations in range) and the endpoints (one connection carries all 100 runIds, each with at least one event, exactly 100 `done` events then `simulation_done`, abort stops all timers, nothing real is called).
-- **Real browser check, 2026-11-25** (built-in browser pane, viewport emulated at 1440x900, demo mode): 100 tiles rendered, all 100 in progress at once (maximum 100), and all 100 past "ready" together 5.9 s after clicking Start; final state of the second run 88 done and 12 failed (N=1; the number of failures is random per run). A first run measured while the browser pane was hidden had its rendering paused until the pane was shown (the page batches updates per animation frame); only its end state (97 done, 3 failed) was kept. Exactly one `POST /simulate` and one stream request per simulation, no reconnects. Clicking a finished tile opened it in the Reasoning, Terminal and Diff panels. Data: [`measurements/simulation-browser-check.json`](measurements/simulation-browser-check.json); screenshot: [`measurements/simulation-100-in-progress.jpg`](measurements/simulation-100-in-progress.jpg).
+- **Real browser check, 2026-11-25** (built-in browser pane, viewport emulated at 1440x900, demo mode): 100 tiles rendered, all 100 in progress at once (maximum 100), and all 100 past "ready" together 5.9 s after clicking Start; final state of the second run 88 done and 12 failed (N=1; the number of failures is random per run). A first run measured while the browser pane was hidden had its rendering paused until the pane was shown (the page batches updates per animation frame); only its end state (97 done, 3 failed) was kept. Exactly one `POST /simulate` and one stream request per simulation, no reconnects. Clicking a finished tile opened it in the Reasoning, Terminal and Diff panels. On a second simulation (N=2 runs, 2026-11-25) a real click on **Copy diff** changed the button to "Copied", which the app sets only after the clipboard write succeeds; the copied text was **not** read back (the pane blocks clipboard reads), so its contents are unverified. Data: [`measurements/simulation-browser-check.json`](measurements/simulation-browser-check.json); screenshot: [`measurements/simulation-100-in-progress.jpg`](measurements/simulation-100-in-progress.jpg).
 - **Not checked:** browsers other than the built-in one, mobile layout, assistive technology.
 
 ## 5. Termination (measured)
@@ -78,7 +78,7 @@ Five real runs each on the same task; "correct" means one comment directly above
 ## 8. Tests and CI
 
 - **Unit and local tests:** 459 tests, 458 pass, 1 skipped (the real-AWS integration test, skipped unless `RUN_INTEGRATION=1`), with `npm test` at commit `d783350`. They need no AWS access.
-- **Integration test:** 1 real MicroVM through the real control plane (HTTP to SSE), run on 2026-11-25: passed (status done, 10 events, a 406-byte diff).
+- **Integration test:** 1 real MicroVM through the real control plane (HTTP to SSE), run on 2026-11-25: passed (status done, 10 events, a 406-byte diff). Record: [`measurements/integration-2026-11-25.json`](measurements/integration-2026-11-25.json).
 - **CI:** the tests and the UI build ran green on Ubuntu and Windows for every commit pushed in Phase 5 (GitHub Actions). macOS was not tested.
 
 ## 9. Costs
