@@ -8,3 +8,6 @@ subswitch.config.json
 .claude/
 config.yaml
 codex-review.jsonl
+
+# /brag output (generated video, large; not committed)
+brag-output/
