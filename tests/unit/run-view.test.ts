@@ -1,7 +1,7 @@
 // UI state logic behind the three panels (Reasoning | Terminal | Diff). Run: node --test tests/unit/run-view.test.ts
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { diffLines, formatMs, initialView, reduce } from "../../web/src/run-view.ts";
+import { diffLines, formatMs, initialView, railSteps, reduce, testTone } from "../../web/src/run-view.ts";
 import type { TraceEvent } from "../../api/types.ts";
 
 const play = (events: TraceEvent[]) => events.reduce(reduce, initialView());
@@ -173,5 +173,44 @@ describe("formatMs", () => {
     assert.equal(formatMs(undefined), "—");
     assert.equal(formatMs(NaN), "—");
     assert.equal(formatMs(-5), "—");
+  });
+});
+
+const PASSED: TraceEvent = { type: "test_result", ts: 4, exitCode: 0, summary: "tests passed" };
+const FAILED: TraceEvent = { type: "test_result", ts: 4, exitCode: 1, summary: "tests failed (exit 1)" };
+const SKIPPED: TraceEvent = { type: "test_result", ts: 4, exitCode: 0, summary: "tests not run: no tests found", skipped: "no tests found" };
+const finished = (t: TraceEvent) => play([{ type: "sandbox_resuming", ts: 1 }, { type: "sandbox_ready", ts: 2, startupMs: 1500 }, { type: "reasoning", ts: 3, text: "x" }, t,
+  { type: "diff", ts: 5, diff: "diff --git a/f b/f\n+a\n-b\n" }, { type: "done", ts: 6, exitCode: (t as any).exitCode }]);
+// Asserts instead of using `!`, so the red run against the [] stub fails on an assertion, not a TypeError.
+const step = (v: ReturnType<typeof play>, key: string) => { const s = railSteps(v).find((x) => x.key === key); assert.ok(s, `no ${key} step`); return s; };
+
+describe("test_result: skipped in the view", () => {
+  test("the reducer keeps the skipped reason; passed and failed results have no skipped key", () => {
+    assert.deepEqual(finished(SKIPPED).test, { exitCode: 0, summary: "tests not run: no tests found", skipped: "no tests found" });
+    assert.deepEqual(finished(PASSED).test, { exitCode: 0, summary: "tests passed" });
+  });
+  test("testTone: passed is ok, failed is fail, skipped is skip", () => {
+    assert.equal(testTone(finished(PASSED).test), "ok");
+    assert.equal(testTone(finished(FAILED).test), "fail");
+    assert.equal(testTone(finished(SKIPPED).test), "skip");
+  });
+});
+
+describe("railSteps (moved from RunRail.tsx; existing behaviour pinned)", () => {
+  test("tests step: passed, failed with the exit code, and grey 'Tests not run' with the reason, never ok", () => {
+    assert.deepEqual(step(finished(PASSED), "tests"), { key: "tests", label: "Tests passed", tone: "ok", detail: undefined });
+    assert.deepEqual(step(finished(FAILED), "tests"), { key: "tests", label: "Tests failed", tone: "fail", detail: "exit 1" });
+    assert.deepEqual(step(finished(SKIPPED), "tests"), { key: "tests", label: "Tests not run", tone: "skip", detail: "no tests found" });
+  });
+  test("four steps in order; the sandbox step shows the startup time; the patch counts lines", () => {
+    const v = finished(PASSED);
+    assert.deepEqual(railSteps(v).map((s) => s.key), ["sandbox", "agent", "tests", "patch"]);
+    assert.equal(step(v, "sandbox").hero, "1.5 s");
+    assert.deepEqual(step(v, "patch"), { key: "patch", label: "Patch ready", tone: "ok", detail: "+1 −1" });
+  });
+  test("before anything happens every step is pending; a finished run with no test result marks tests as failed", () => {
+    assert.ok(railSteps(play([])).length === 4 && railSteps(play([])).every((s) => s.tone === "pending"));
+    const noTest = play([{ type: "sandbox_resuming", ts: 1 }, { type: "sandbox_ready", ts: 2, startupMs: 1 }, { type: "reasoning", ts: 3, text: "x" }, { type: "done", ts: 4, exitCode: 1 }]);
+    assert.equal(step(noTest, "tests").tone, "fail");
   });
 });

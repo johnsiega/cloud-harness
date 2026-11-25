@@ -152,3 +152,25 @@ describe("EventParser: base commit", () => {
     assert.equal(p.baseCommit, SHA);
   });
 });
+
+describe("test_result: skipped", () => {
+  test("exit 0 with a skipped reason becomes 'tests not run: <reason>' and carries the reason", () => {
+    assert.deepEqual(parser().push(j({ type: "test_result", exitCode: 0, skipped: "no tests found" })),
+      [{ type: "test_result", ts: NOW, exitCode: 0, summary: "tests not run: no tests found", skipped: "no tests found" }]);
+  });
+  test("a non-zero exit is a failure even if a skipped reason is present (failure wins)", () => {
+    assert.deepEqual(parser().push(j({ type: "test_result", exitCode: 2, skipped: "x" })),
+      [{ type: "test_result", ts: NOW, exitCode: 2, summary: "tests failed (exit 2)" }]);
+  });
+  test("an empty, blank or non-string skipped value is ignored", () => {
+    for (const skipped of ["", "  ", 7, null, { a: 1 }]) {
+      assert.deepEqual(parser().push(j({ type: "test_result", exitCode: 0, skipped })),
+        [{ type: "test_result", ts: NOW, exitCode: 0, summary: "tests passed" }], JSON.stringify(skipped));
+    }
+  });
+  test("a long reason is capped at 200 characters", () => {
+    const [e] = parser().push(j({ type: "test_result", exitCode: 0, skipped: "r".repeat(500) })) as any[];
+    assert.ok(e, "an event must be produced");
+    assert.equal(e.skipped?.length, 200);
+  });
+});

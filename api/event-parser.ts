@@ -39,7 +39,10 @@ export function createEventParser(o: { now?: () => number } = {}): EventParser {
     }
     else if (j.type === "test_result") {
       const exitCode = Number(j.exitCode);
-      out.push({ type: "test_result", ts, exitCode, summary: exitCode === 0 ? "tests passed" : `tests failed (exit ${exitCode})` });
+      // A reason only counts with exit 0: a failure is always a failure.
+      const skipped = exitCode === 0 && typeof j.skipped === "string" && j.skipped.trim() ? j.skipped.slice(0, 200) : undefined;
+      const summary = skipped ? `tests not run: ${skipped}` : exitCode === 0 ? "tests passed" : `tests failed (exit ${exitCode})`;
+      out.push({ type: "test_result", ts, exitCode, summary, ...(skipped ? { skipped } : {}) });
     }
   };
 

@@ -217,3 +217,25 @@ describe("executeRun: redaction", () => {
     assert.ok(!JSON.stringify(r.rec).includes(KEY));
   });
 });
+
+const skippedResult = (reason: string) => J({ type: "test_result", exitCode: 0, skipped: reason });
+
+describe("executeRun: skipped tests", () => {
+  test("a skipped test step with a diff ends done (exit 0), and the event keeps the reason", async () => {
+    const r = await run(fake({ chunks: [[msg("x"), codexExit(0)], [skippedResult("no tests found"), ...diffBlock()]] }));
+    assert.equal(r.rec.status, "done");
+    assert.deepEqual(r.rec.events.at(-1), { type: "done", ts: 5000, exitCode: 0 });
+    const tr: any = r.rec.events.find((e) => e.type === "test_result");
+    assert.equal(tr?.summary, "tests not run: no tests found");
+    assert.equal(tr?.skipped, "no tests found");
+  });
+  test("a skipped step cannot rescue a failed agent or an empty diff", async () => {
+    assert.equal((await run(fake({ chunks: [[codexExit(1)], [skippedResult("no tests found"), ...diffBlock()]] }))).rec.status, "error");
+    assert.equal((await run(fake({ chunks: [[codexExit(0)], [skippedResult("no tests found"), ...diffBlock([])]] }))).rec.status, "error");
+  });
+  test("a real test failure still ends error with the test's exit code", async () => {
+    const r = await run(fake({ chunks: [[codexExit(0)], [testResult(3), ...diffBlock()]] }));
+    assert.equal(r.rec.status, "error");
+    assert.deepEqual(r.rec.events.at(-1), { type: "done", ts: 5000, exitCode: 3 });
+  });
+});
