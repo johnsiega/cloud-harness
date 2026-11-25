@@ -9,6 +9,7 @@
 **Tech Stack:** Node 22 (TypeScript run directly, `node:test`), Hono, React 19 + Vite, bash inside an AL2023 Lambda MicroVM image.
 
 **Spec:** [`docs/superpowers/specs/2026-11-25-per-run-test-command-design.md`](../specs/2026-11-25-per-run-test-command-design.md)
+**Status:** final. Decisions D1 to D5 were approved on 2026-11-25. Not yet implemented.
 
 ## Global Constraints
 
@@ -47,17 +48,30 @@
 | `npm run smoke` builds the image **and then does one real hospital-queue run** with the default task. | `scripts/smoke-test.ts:447-511` | The rebuild [go] includes one model call, and that run is already a runner-level PHP regression check. |
 | `loadDotEnv` never overrides a variable already set in the process. | `api/main.ts:15-21` | Pass the new `MICROVM_IMAGE_ARN` through the shell, never by editing `.env`. |
 
-## Decisions for the user (answer before Task 1; the plan assumes the recommendation)
+## Decisions (approved by the user on 2026-11-25)
 
-- **D1. pytest is not in the image.** As written, the spec runs `python3 -m pytest -q` after `pip install -r requirements.txt`. A repo that has pytest evidence but does not list pytest in `requirements.txt` would fail with "No module named pytest" and end **red**.
-  - **(A, recommended)** Bake pytest into the image: `python3 -m pip install --no-cache-dir pytest` in the Dockerfile. It costs a few MB and adds no time per run.
-  - (B) Install it per run instead: the Python install becomes `python3 -m pip install -q pytest -r requirements.txt` (or `... pytest` with no requirements file). It counts against the 180 s.
-  - (C) Keep the spec literally and accept red runs in that case.
-  - Task 1's Python constants and Task 2's Dockerfile step change if you pick B or C. Each step says how.
-- **D2. Snapshot the diff before the test step (recommended).** Today `git add -A && git diff` runs *after* the tests. Laravel ignores `vendor/`, but Node and Python installs and test caches (`node_modules/`, `__pycache__/`, `.pytest_cache/`) can land in the patch when a repo does not ignore them. Moving the snapshot to just after Codex keeps everything the test step creates out of the diff. Event order on stdout is unchanged (the diff block is still printed last).
-- **D3. How `skip` is handled.** The control plane trims the value and treats `skip` in any letter case as `skip`. The reason text is **"skipped by request"**. The other reasons come from the spec: "no tests found", "dependencies could not be installed", "detection failed".
-- **D4. Duplicate check.** Two active runs with the same repo and task but different test commands are still treated as duplicates (409). This is the smallest choice.
-- **D5. Python `tests/` rule.** Only files directly inside `tests/` count (`tests/test_*.py`), not nested folders. This follows the spec's wording.
+These go beyond the spec or settle something it left open. The reasons are recorded here, and Task 7 copies them into `docs/DECISION_LOG.md` when the code ships.
+
+- **D1. pytest is baked into the image (option A).**
+  - *Problem:* the spec runs `python3 -m pytest -q` after `pip install -r requirements.txt`. The image has no pytest, and many Python repos list pytest only in a dev file (or nowhere). Those runs would fail with "No module named pytest" and end **red**. The agent's change would be fine, but the run would be blocked by a missing tool.
+  - *Why A:*
+    - It fixes that for every Python repo at once.
+    - It costs a few MB in the image, paid once at build time, and adds **no time to any run**.
+    - It keeps the 180 s install limit free for the repo's own dependencies.
+    - It is one Dockerfile line, and the fail-early check line (`python3 -m pytest --version`) proves it at build time.
+  - *Rejected:*
+    - (B) Installing pytest on every run downloads it each time and eats into the 180 s.
+    - (C) Following the spec literally keeps the red runs described above.
+  - *Known trade-off:* a repo that pins a different pytest version reinstalls it from its own `requirements.txt`. That is normal pip behaviour.
+- **D2. The diff is captured before the test step.**
+  - *Problem:* today `git add -A && git diff` runs *after* the tests. Laravel ignores `vendor/`, but Node and Python installs and test caches (`node_modules/`, `__pycache__/`, `.pytest_cache/`) would land in the patch whenever a repo does not ignore them. Those files would then be pushed or put in a PR.
+  - *Why:* the patch should be what the agent changed, not what the test run left behind. Taking the snapshot right after Codex guarantees that. The diff block is still printed last, so event order and every consumer are unchanged.
+- **D3. `skip` is matched in any letter case, with the reason "skipped by request".**
+  - *Why:* people type "Skip" or "SKIP". The control plane normalises it once (trim plus lowercase compare), so the runner only ever sees the exact word `skip`. The reason text says plainly that the user chose it, and keeps it apart from "no tests found".
+- **D4. The duplicate check stays `repoUrl + task`.**
+  - *Why:* the check exists to stop an accidental double submit. The same repo and task with a different test command is almost always that same mistake. Changing the check would touch the store and its tests for no real gain.
+- **D5. Only `tests/test_*.py` files directly inside `tests/` count as pytest evidence.**
+  - *Why:* this follows the spec's wording, and the check stays cheap and predictable. Repos with nested test folders almost always also have `pytest.ini`, `conftest.py` or `[tool.pytest` in `pyproject.toml`, and those are detected anyway.
 
 ## File map
 
@@ -233,8 +247,6 @@ describe("formatPlan and the CLI", () => {
 
 Add the file to `package.json` after `scripts/runner/server.test.ts`: `"test": "node --test scripts/smoke-test.test.ts scripts/monitoring.test.ts scripts/runner/server.test.ts scripts/runner/detect-tests.test.ts tests/unit/*.test.ts tests/simulation/*.test.ts tests/integration/*.test.ts"`.
 
-If you pick **D1 option B**, change `PYTEST`/`PIP` expectations so that the install is `python3 -m pip install -q pytest -r requirements.txt` with a requirements file and `python3 -m pip install -q pytest` without one, so the Python plan always has an install.
-
 - [ ] **Step 3: Red run**
 
 Run: `node --test scripts/runner/detect-tests.test.ts`
@@ -288,8 +300,6 @@ if (process.argv[1] && /detect-tests\.mjs$/.test(process.argv[1].replace(/\\/g, 
   process.stdout.write(formatPlan(detectTests(process.argv[2])));
 }
 ```
-
-(D1 option B: the Python line becomes `install: has(dir, "requirements.txt") ? "python3 -m pip install -q pytest -r requirements.txt" : "python3 -m pip install -q pytest"`.)
 
 - [ ] **Step 6: Green run**
 
@@ -452,7 +462,7 @@ The new tests in `describe("image build request")` go next to the existing `for 
 
 ```ts
     ["python3 and pip", /python3 python3-pip/],
-    ["pytest (D1 option A)", /pip install[^\n]*\bpytest\b/],
+    ["pytest (D1)", /pip install[^\n]*\bpytest\b/],
 ```
 
 ```ts
@@ -469,8 +479,6 @@ The new tests in `describe("image build request")` go next to the existing `for 
     for (const f of Object.keys(pkg).filter((k) => k !== "Dockerfile")) assert.ok(copied.includes(f), `${f} not copied`);
   });
 ```
-
-(D1 option B or C: drop the `pytest` row and the `python3 -m pytest --version` assertion.)
 
 - [ ] **Step 3: Red run**
 
@@ -530,7 +538,7 @@ exit "$TEST_EXIT"
 
 `scripts/runner/Dockerfile`:
 - In the `dnf install` list, add `python3 python3-pip` after `sqlite`.
-- After `npm install -g @openai/codex`, add `&& python3 -m pip install --no-cache-dir pytest \` (D1 option A only).
+- After `npm install -g @openai/codex`, add `&& python3 -m pip install --no-cache-dir pytest \` (D1).
 - Extend the final check line: `... && git --version && python3 --version && python3 -m pytest --version && timeout --version`.
 - `COPY server.mjs run-task.sh detect-tests.mjs /opt/runner/`.
 - Update the comment on line 5 to mention python3 and pytest.
@@ -1003,7 +1011,7 @@ Not checkable here: the grey rail step itself, because demo mode cannot run a re
   - why detection happens in the VM (the repo exists only there);
   - PHP kept byte-identical;
   - skipped counts as exit 0, never green;
-  - D1, D2, D3 and D4 as decided;
+  - D1 to D5 with their reasons, copied from the "Decisions" section of this plan;
   - user commands have the same trust as the task text.
 - `docs/EXPLAINED.md`:
   - §3 step 6: the test command is detected or given;
@@ -1052,7 +1060,7 @@ Preconditions: Tasks 1-7 are done, CI is green, and nothing is running (`node sc
     - the smoke run's `test_result` is exit 0, because PHP is detected for hospital-queue with no `TEST_CMD`;
     - the gate passes.
   - **Stop conditions:**
-    - The build fails at the pip or pytest line. For example, the system Python may refuse a global install, so read CloudWatch `/aws/lambda-microvms/<image-name>`. Report it, propose a fix (for example a venv, or D1 option B), and get a new go.
+    - The build fails at the pip or pytest line. For example, the system Python may refuse a global install, so read CloudWatch `/aws/lambda-microvms/<image-name>`. Report it, propose a fix (for example a venv for pytest, or falling back to installing pytest per run), and get a new go.
     - The smoke `test_result` is not 0.
   - Record the new image name and ARN in the session only. The ARN contains the account id, so it never goes into a committed file.
 

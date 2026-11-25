@@ -13,6 +13,7 @@ A new route, `POST /runs/:id/pr`, combines them. `push-state.ts` gains a `pushMo
 **Tech Stack:** Node 22 (TypeScript run directly, `node:test`), Hono, React 19 + Vite, GitHub REST API (`api.github.com`, version `2022-11-28`), git.
 
 **Spec:** [`docs/superpowers/specs/2026-11-25-one-click-draft-pr-design.md`](../specs/2026-11-25-one-click-draft-pr-design.md)
+**Status:** final. Decisions R1 to R4 were approved on 2026-11-25. Not yet implemented.
 **Depends on:** [piece 1 plan](2026-11-25-per-run-test-command-plan.md), fully shipped (Task 8 green). The PR body reads `test_result.skipped`, and the real check needs goats to end `done`.
 
 ## Global Constraints
@@ -50,7 +51,19 @@ A new route, `POST /runs/:id/pr`, combines them. `push-state.ts` gains a `pushMo
 | The spec maps 403, 404, 422 and network errors. It does not mention **401**, the usual "expired token" answer. | (spec §Safety) | **R2:** map 401 to "GitHub rejected the PR token (invalid or expired)". |
 | A GitHub @mention in a PR body notifies that user. | GitHub behaviour | **R3:** the task goes inside a fenced code block, where mentions do not notify and markdown does not render. |
 
-R1-R3 are small refinements of the spec. They are listed for the user's review at the "tests approved" gate of the task that holds them.
+## Decisions (approved by the user on 2026-11-25)
+
+R1 to R4 are small refinements of the spec. The reasons are recorded here, and Task 6 copies them into `docs/DECISION_LOG.md` when the code ships.
+
+- **R1. A retry after a partial failure opens the PR without pushing again.**
+  - *Problem:* pushing the branch and creating the PR are two separate calls to GitHub. If the push succeeds and the PR call then fails (a network blip, a 422, a permission error), the spec's rule "an existing branch answers 409" would block every retry forever. The only way out would be deleting the branch by hand.
+  - *Why:* the route stores `pr: {branch, commit}` as soon as the push succeeds. A retry sees the branch and goes straight to the PR call. This keeps the spec's real guarantees: the branch is pushed exactly once, never forced, and there is one PR per run.
+- **R2. GitHub's 401 gets its own message: "GitHub rejected the PR token (invalid or expired)".**
+  - *Why:* fine-grained tokens expire (the plan suggests 7 to 30 days), so an expired token is the most likely real failure. The spec's list (403, 404, 422, network) would report it as a generic "GitHub answered HTTP 401". A plain message tells the owner to make a new token.
+- **R3. The task text sits inside a fenced code block in the PR body.**
+  - *Why:* GitHub notifies anyone `@mentioned` in a PR body, and renders markdown such as images and links. The task is free text, so an `@name` in it could ping a stranger from a public repo. Inside a code fence, mentions do not notify and markdown does not render. The task is still shown verbatim, and the fence is always longer than any `~` run in the task, so the task cannot close it.
+- **R4. The default branch is read before anything is pushed.**
+  - *Why:* reading the default branch is also the cheapest check that the token can see the repo. When the token is wrong, the run fails with a clear error and leaves no stray branch behind on a public repo.
 
 ## File map
 
@@ -346,7 +359,7 @@ describe("buildPrText", () => {
 ```
 
 - [ ] **Step 3: Red run.** Run `node --test tests/unit/github-pr.test.ts`. Expected: every test fails with an `AssertionError` (stub results, empty strings, no calls recorded). The `assert.ok(f.calls[0], ...)` lines keep an empty call list from turning into a `TypeError` (same pattern as `microvm-launcher.test.ts:121`). In the "invalid slug" test, the `deepEqual` fails on the stub's error text. The fence test's `assert.ok(fence ...)` fails on the empty body.
-- [ ] **Step 4: GATE: "tests approved"** (also ask the user to accept R2 (401) and R3 (fence))
+- [ ] **Step 4: GATE: "tests approved"**
 - [ ] **Step 5: Implement**
 
 ```ts
@@ -696,7 +709,7 @@ describe("GET /config with draft PRs", () => {
   - the "without the PR feature" `/config` test.
 
   The existing `push-route.test.ts` and `demo-mode.test.ts` must stay green.
-- [ ] **Step 4: GATE: "tests approved"** (and the user accepts R1)
+- [ ] **Step 4: GATE: "tests approved"**
 - [ ] **Step 5: Implement**
 
 ```ts
@@ -997,7 +1010,7 @@ Imports to add: `pushMode`, `type PushMode` from `./push-state.ts`; `repoSlug` f
 - [ ] **Step 2:** `docs/DECISION_LOG.md`: add a new entry, "Draft PR into the run's own repo". It records:
   - why patch delivery is reused unchanged;
   - default branch read first (no push when the token cannot see the repo);
-  - R1, R2 and R3;
+  - R1 to R4 with their reasons, copied from the "Decisions" section of this plan;
   - fixed error strings;
   - forks and private repos as later work.
 
@@ -1110,5 +1123,5 @@ Imports to add: `pushMode`, `type PushMode` from `./push-state.ts`; `repoSlug` f
   - UI variant → Tasks 4 and 5.
   - Each spec test group → Tasks 1-4.
   - Real verification → Task 7.
-- **Additions beyond the spec, flagged for approval:** R1 (retry without re-push), R2 (401), R3 (fenced task), and "default branch first".
+- **Additions beyond the spec, approved on 2026-11-25:** R1 (retry without re-push), R2 (401), R3 (fenced task), R4 (default branch first).
 - **Names used consistently:** `repoSlug`, `parseRepoList`, `isAllowed`, `createGithubPrs`, `GithubPrs`, `GhResult`, `PrFailure`, `describeTests`, `buildPrText`, `AppDeps.pr`, `RunRecord.pr`, `PR_STATUS`, `PushMode`, `pushMode`.
