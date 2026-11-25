@@ -2,7 +2,7 @@
 // Run: node --test tests/unit/push-state.test.ts
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { canPush, initialPush, pushErrorMessage, pushLabel, reducePush, shortSha, type PushState } from "../../web/src/push-state.ts";
+import { canPush, initialPush, pushErrorMessage, pushLabel, pushMode, reducePush, shortSha, type PushState } from "../../web/src/push-state.ts";
 import { initialView, reduce } from "../../web/src/run-view.ts";
 import type { TraceEvent } from "../../api/types.ts";
 
@@ -134,5 +134,58 @@ describe("pushLabel and shortSha", () => {
     assert.equal(shortSha(""), "");
     assert.equal(shortSha("short"), "");
     assert.equal(shortSha("z".repeat(40)), "");
+  });
+});
+
+const GOATS = "https://github.com/johnsiega/goats-hsw-rag-chatbot";
+const PR_ON = { pushEnabled: true, pushTarget: "johnsiega/hospital-queue-harness", prRepos: ["johnsiega/goats-hsw-rag-chatbot"] };
+
+describe("pushMode", () => {
+  test("an allowlisted repo's finished run gets the PR button", () => {
+    assert.equal(pushMode(FINISHED, PR_ON, "run-1", GOATS), "pr");
+    assert.equal(pushMode(FINISHED, PR_ON, "run-1", "https://github.com/JohnSiega/goats-hsw-rag-chatbot.git"), "pr");
+  });
+  test("any other repo keeps v1's push-to-branch, or nothing when push is off", () => {
+    assert.equal(pushMode(FINISHED, PR_ON, "run-1", "https://github.com/jyvnn/hospital-queue"), "branch");
+    assert.equal(pushMode(FINISHED, { ...PR_ON, pushEnabled: false }, "run-1", "https://github.com/jyvnn/hospital-queue"), null);
+    assert.equal(pushMode(FINISHED, ON, "run-1", GOATS), "branch", "without prRepos the v1 behaviour is unchanged");
+  });
+  test("PR works even when the staging push is not configured", () => {
+    assert.equal(pushMode(FINISHED, { pushEnabled: false, prRepos: PR_ON.prRepos }, "run-1", GOATS), "pr");
+  });
+  test("nothing for an unfinished or failed run, a missing run id, an unloaded config, or a run with no diff", () => {
+    const running = play([{ type: "sandbox_resuming", ts: 1 }, { type: "diff", ts: 2, diff: DIFF }]);
+    const errored = play([{ type: "diff", ts: 3, diff: DIFF }, { type: "done", ts: 4, exitCode: 1 }]);
+    const empty = play([{ type: "diff", ts: 3, diff: "" }, { type: "done", ts: 4, exitCode: 0 }]);
+    assert.equal(pushMode(FINISHED, PR_ON, "run-1", GOATS), "pr", "sanity: the same inputs do give a button");
+    for (const [v, cfg, id] of [[running, PR_ON, "run-1"], [errored, PR_ON, "run-1"], [empty, PR_ON, "run-1"], [FINISHED, PR_ON, undefined], [FINISHED, undefined, "run-1"]] as const) {
+      assert.equal(pushMode(v, cfg, id, GOATS), null);
+    }
+  });
+});
+
+describe("PR states", () => {
+  test("success keeps the PR number; a 409 that names a PR shows it as opened, not as an error", () => {
+    const s = reducePush({ status: "pushing" }, { type: "success", branch: "harness/run-1", url: `${GOATS}/pull/7`, number: 7 });
+    assert.deepEqual(s, { status: "pushed", branch: "harness/run-1", url: `${GOATS}/pull/7`, number: 7 });
+    const dup = reducePush({ status: "pushing" }, { type: "failure", status: 409, mode: "pr", body: { branch: "harness/run-1", url: `${GOATS}/pull/7`, number: 7 } });
+    assert.equal(dup.status, "pushed");
+    assert.equal(dup.number, 7);
+  });
+  test("a 409 without a branch (e.g. pr_unprocessable) is a failure with the server's message", () => {
+    const s = reducePush({ status: "pushing" }, { type: "failure", status: 409, mode: "pr", body: { reason: "pr_unprocessable", error: "a pull request already exists or there is nothing to compare" } });
+    assert.equal(s.status, "failed");
+    assert.match(s.error!, /already exists/);
+  });
+  test("labels per mode; branch labels are unchanged", () => {
+    assert.equal(pushLabel({ status: "idle" }, "pr"), "Open draft PR");
+    assert.equal(pushLabel({ status: "pushing" }, "pr"), "Opening draft PR");
+    assert.equal(pushLabel({ status: "failed" }, "pr"), "Try again");
+    assert.equal(pushLabel({ status: "idle" }), "Push to branch");
+  });
+  test("503 explains how to enable each mode; PR reasons show the server's message with token shapes scrubbed", () => {
+    assert.match(pushErrorMessage(503, {}, "pr"), /PR_REPOS and GIT_PR_TOKEN/);
+    assert.match(pushErrorMessage(503, {}), /GIT_PUSH_TOKEN/);
+    assert.equal(pushErrorMessage(502, { reason: "pr_forbidden", error: "the token lacks permission github_pat_11ABC_def" }, "pr"), "the token lacks permission [REDACTED]");
   });
 });
