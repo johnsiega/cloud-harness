@@ -135,3 +135,26 @@ button.ghost:hover { background: var(--raised); }
 @media (prefers-reduced-motion: reduce) {
   .status .dot, .rail .step.active .node { animation: none; }
 }
+
+/* ---- simulation tab ---- */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--mute); padding: 8px 14px; font: 600 14px var(--sans); cursor: pointer; }
+.tabs button.on { color: #eef3f6; border-bottom-color: var(--amber); }
+.banner { margin: 0; padding: 10px 14px; border: 1px dashed var(--amber); border-radius: 6px; color: var(--amber); background: rgba(242, 181, 68, 0.08); }
+.simform { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.simform label { display: inline-flex; align-items: center; gap: 8px; color: var(--mute); }
+.simform input { width: 80px; background: var(--slate); color: var(--fog); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: 14px var(--mono); }
+.simform button.run { background: var(--amber); color: #1a1405; border: 0; border-radius: 6px; padding: 7px 16px; font: 700 14px var(--sans); cursor: pointer; }
+.simform button.run:disabled { background: var(--raised); color: var(--mute); cursor: progress; }
+.simsum { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; font-variant-numeric: tabular-nums; color: var(--mute); }
+.simsum b { color: #eef3f6; font-family: var(--mono); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 6px; }
+.tile { display: grid; gap: 1px; text-align: left; padding: 6px 8px; background: var(--slate); color: var(--fog); border: 1px solid var(--line); border-left-width: 3px; border-radius: 6px; font: 12px var(--mono); cursor: pointer; }
+.tile .n { color: var(--mute); }
+.tile .ph { font-weight: 600; }
+.tile .m { color: var(--mute); font-size: 11px; }
+.tile.resuming, .tile.ready, .tile.running { border-left-color: var(--amber); }
+.tile.done { border-left-color: var(--mint); }
+.tile.error { border-left-color: var(--coral); }
+.tile.selected { outline: 2px solid var(--amber); }
+.simhead { margin: 8px 0 0; font-size: 16px; color: #eef3f6; }

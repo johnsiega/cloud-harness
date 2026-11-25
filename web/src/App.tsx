@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { RunForm } from "./RunForm.tsx";
+import { SimulationView } from "./SimulationView.tsx";
 import { RunRail } from "./RunRail.tsx";
 import { TracePanels } from "./TracePanels.tsx";
 import { formatMs } from "./run-view.ts";
@@ -26,6 +27,7 @@ const STATUS: Record<string, string> = {
 
 export default function App() {
   const { view, meta, submit } = useRun();
+  const [tab, setTab] = useState<"live" | "sim">("live");
   const active = meta.submitting;
   const elapsed = useElapsed(meta.submittedAt, active);
 
@@ -41,12 +43,21 @@ export default function App() {
         </p>
       </header>
 
+      <nav className="tabs" role="tablist" aria-label="View">
+        <button role="tab" aria-selected={tab === "live"} className={tab === "live" ? "on" : ""} onClick={() => setTab("live")}>Live run</button>
+        <button role="tab" aria-selected={tab === "sim"} className={tab === "sim" ? "on" : ""} onClick={() => setTab("sim")}>Simulation</button>
+      </nav>
+
+      {tab === "sim" ? <SimulationView /> : (
+        <>
       <RunForm busy={active} onSubmit={submit} />
       {meta.notice && <p className="note">{meta.notice}</p>}
       {meta.error && <p className="note error" role="alert">{meta.error}</p>}
 
       <RunRail view={view} />
       <TracePanels view={view} runId={meta.runId} />
+        </>
+      )}
     </main>
   );
 }
