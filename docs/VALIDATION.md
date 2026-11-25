@@ -77,7 +77,7 @@ Five real runs each on the same task; "correct" means one comment directly above
 
 ## 8. Tests and CI
 
-- **Unit and local tests:** 525 tests, 524 pass, 1 skipped (the real-AWS integration test, skipped unless `RUN_INTEGRATION=1`), with `npm test` after the per-run test command work (it was 466 after the quota-detection fix, and 459 when the Phase 5 real runs were made). They need no AWS access. CI was green on Ubuntu and Windows for this count (commit `12ce818`).
+- **Unit and local tests:** 578 tests, 577 pass, 1 skipped (the real-AWS integration test, skipped unless `RUN_INTEGRATION=1`), with `npm test` after the draft PR work (it was 525 after the per-run test command, 466 after the quota-detection fix, and 459 when the Phase 5 real runs were made). They need no AWS access. CI was green on Ubuntu and Windows for this count (commit `4b15ea5`).
 - **Integration test:** 1 real MicroVM through the real control plane (HTTP to SSE), run on 2026-11-25: passed (status done, 10 events, a 406-byte diff). Record: [`measurements/integration-2026-11-25.json`](measurements/integration-2026-11-25.json).
 - **CI:** the tests and the UI build ran green on Ubuntu and Windows for every commit pushed in Phase 5 (GitHub Actions). macOS was not tested.
 
@@ -96,6 +96,7 @@ Five real runs each on the same task; "correct" means one comment directly above
 - The unexplained slow first two runs of the K=2 step (about 45 s to first output).
 - Per-model results beyond N=5 per model, and any repository other than `jyvnn/hospital-queue`.
 - AWS and OpenRouter cost per run.
+- **Draft PR (section 12):** only one real PR was opened, on one repo whose default branch is `main`. The real GitHub error paths (401, 403, 404, 422, timeouts), branch protection, required reviews and rate limits, a repo whose default branch is not `main`, and two clicks racing against real GitHub were not exercised; they are covered by unit tests with a fake GitHub client only. The real-mode wiring in `api/main.ts` has no unit test; it was exercised only by this one run. The Push to branch button was not re-run for real after this change.
 - **Test command (section 11):** the Node and Python detection paths and the 180 s install limit have not run in a real MicroVM; a custom command and `skip` were never run for real; a repo with pytest or Node tests was not run for real.
 - **Slower first output on a freshly built image** (about 29 to 48 s for the first runs, section 11): three follow-up runs got steadily faster (first activity 31.8, 14.2, 6.8 s), which fits a warm-up effect, but the cause was not isolated and the old image was not run to compare. How long an image stays warm when idle was not measured.
 
@@ -110,3 +111,18 @@ Real runs of the build with the per-run test command (the runner detects the tes
 - **Slower than before (probably a warm-up effect; see the next bullet):** first output came after 29 to 48 s in all three runs on the new image, against a median of 6.8 s (and 15.4 s total) in the earlier 13 real runs. Ready times were normal (1.3 to 3.8 s), and after the first output the agent, tests and diff took only about 4 to 6 s. The old image was not run on the same day.
 - **Follow-up: three more smoke runs back to back on the same new image** (`SMOKE_IMAGE_ARN=<image> SMOKE_RUNS=3 npm run smoke`, hospital-queue, 2026-11-25): total 60.3 s, 28.0 s, 15.0 s; first agent activity at about 31.8 s, 14.2 s, 6.8 s; the test step (Composer install and tests) took about 20 s, 8 s, 4 s; ready 3.7 to 3.8 s each time. Everything after the sandbox came up got faster from run to run, including the test step, which involves no model. That points to a warm-up effect on a freshly created or idle image (the same pattern as the two slow K=2 runs in section 3, which were followed by fast runs), and not to the model service. **This is consistent with that explanation, not proof of it:** it is one image, three runs, one session, the cause was not isolated, and the old image was not run to compare. It was not checked how long an image stays warm after being idle. The three runs cost about $0.006 of model tokens plus a few minutes of one 2 GB MicroVM; the AWS cost was not measured.
 - **Not run for real:** the Node and Python detection and install paths, the 180 s install limit against a real slow install, a custom command, `skip`, and the request path for a typed command. These are covered by unit and script tests with fake `npm`, `python3` and pip programs only.
+
+## 12. Draft pull request (measured, 2026-11-25)
+
+One real end-to-end check of the one-click draft PR, on a public repo the owner controls (`johnsiega/goats-hsw-rag-chatbot`, default branch `main`, no `.github` folder so no Actions could run). One run, one PR; read it as a single working example, not as a reliability figure.
+
+- **Setup:** `PR_REPOS` and a fine-grained `GIT_PR_TOKEN` limited to that repo (Contents and Pull requests write) were set in the control plane's `.env`. The startup log read "draft PRs enabled for: johnsiega/goats-hsw-rag-chatbot", and `GET /config` listed the repo name and no token. Before the run the repo had 0 pull requests, 0 `harness/*` branches, and `main` at `c23fd3e`.
+- **The run** (id `5c83f1ff-7a54-4344-9f85-f6836e3273ec`, the same task as in section 11, Test command blank): ended `done`, with the grey "Tests not run: no tests found". 2.1 s to ready, 9.4 s to first output, 13.1 s in total. The diff was one added comment line at the top of `app.py`. The Diff panel showed **Open draft PR** "into johnsiega/goats-hsw-rag-chatbot" and not Push to branch.
+- **The PR** (pressed once, after the diff was read): draft pull request [#1](https://github.com/johnsiega/goats-hsw-rag-chatbot/pull/1). Verified read-only afterwards with `gh`:
+  - `isDraft: true`, state open, base `main`, head `harness/5c83f1ff-7a54-4344-9f85-f6836e3273ec`;
+  - one commit authored "Cloud harness", whose parent is the run's base commit `c23fd3e`, changing only `app.py` (+1 −0);
+  - the body had the task in a fenced block, the run id, the model, "Tests: not run (no tests found)" and the review notice, and no `sk-or-`, `github_pat_` or `ghp_` text;
+  - `main` was unchanged at `c23fd3e`; the repo had 2 branches (`main` and the harness branch) and 0 Actions runs;
+  - the control plane's log contained no token text.
+- **Repeat click:** a second `POST /runs/<id>/pr` answered HTTP 409 with the existing PR number, link and branch, and wrote nothing (still 1 PR, 1 harness branch, `main` unchanged).
+- **Not verified:** see the gaps in section 10. In particular the agent's comment text ("Filipino HSW rights questions ... from official documents") was written by the model and was not checked against the repo's content by this project; the PR is a draft precisely so a human reviews it.
