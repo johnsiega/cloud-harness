@@ -1,0 +1,23 @@
+{
+  "what": "Real-AWS check of scripts/kill-all.ts and of how a run ends when its MicroVM is killed mid-run (Plan step 8).",
+  "date": "2026-11-25",
+  "region": "us-east-1",
+  "image": "hq-smoke-1795435760936 (created 2026-11-23)",
+  "part1_idle_vms": {
+    "started": 2,
+    "payload": "empty (no key, no task, no model call)",
+    "dry_run": "listed both as RUNNING and terminated nothing",
+    "yes_run": "Terminated 2, failed 0, exit 0",
+    "after": "list-microvms showed both TERMINATED; a second dry run found nothing to terminate"
+  },
+  "part2_real_run_killed_mid_run": {
+    "n": 1,
+    "agent_state_at_kill": "agent working (about 7 s after submit; had emitted command output)",
+    "startupMs": 1865,
+    "kill": "node scripts/kill-all.ts --yes: Terminated 1, failed 0",
+    "outcome": "run status 'error', stderr 'events poll failed: HTTP 502', then done(exit 1), 11 s after the kill command started",
+    "vm_after": "TERMINATED"
+  },
+  "reading": "A killed MicroVM surfaced as an HTTP 502 on the next poll, so the run failed fast. The per-request timeout added in Step 6 was NOT exercised by this scenario (no poll hung); it is covered by unit tests only. The 11 s includes the kill-all call and the time until the proxy began answering 502; it was not broken down further.",
+  "not_verified": "A poll that actually hangs against real AWS; behaviour under suspend or network loss; N=1 for the mid-run kill."
+}
