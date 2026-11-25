@@ -15,13 +15,13 @@ Cloud harness takes a public GitHub repository and a task written in plain words
 
 If you like the change, one button pushes it to a new branch in a private repository. Nothing touches your own machine, and nothing is merged for you.
 
-For example, you can ask for "add a one-line comment above `enabled()` in `app/Services/QueueEventLog.php`" and, about twenty seconds later, see the exact one-line patch, the passing test run, and a button that puts it on a branch.
+For example, you can ask for "add a one-line comment above `enabled()` in `app/Services/QueueEventLog.php`" and, usually within a minute (11 to 63 s in the measured runs), see the exact one-line patch, the passing test run, and a button that puts it on a branch.
 
 ## Why we built it
 
 AI agents write and run code. Letting one do that on your own laptop means trusting it with your files, your credentials and your network. A throwaway virtual machine that starts in seconds and is destroyed when the run ends changes that trade-off.
 
-This project explores that idea end to end: the isolation, how fast it starts, what it costs, how to watch the agent without trusting it, and how to get its work out safely. It is a working prototype, built step by step with tests first, and it records what was measured and what was not.
+**Status: v1.0.0**, a finished prototype. This project explores that idea end to end: the isolation, how fast it starts, what it costs, how to watch the agent without trusting it, and how to get its work out safely. It is a working prototype, built step by step with tests first, and it records what was measured and what was not.
 
 ## Try it
 
@@ -44,6 +44,10 @@ npm start
 ```
 
 Open <http://127.0.0.1:3000>, choose the **Simulation** tab and press **Start simulation** (100 runs by default, up to 200). To get demo mode even when you have keys set, use `$env:HARNESS_DEMO = "1"`.
+
+![The Simulation tab with 100 simulated runs in progress](docs/measurements/simulation-100-in-progress.jpg)
+
+*Screenshot of the **simulation**: 100 fictional runs, no MicroVMs.*
 
 The simulation is **not real**. The control plane generates seeded, fictional events and streams all of them over one connection, each tagged `simulated: true`; no MicroVM is started, no model is called, and nothing can be pushed. It exists to show the UI holding 100 live traces at once. The numbers for real concurrency are different and much smaller; see [What we measured](#what-we-measured).
 
@@ -109,7 +113,7 @@ Read this before pointing it at code you care about.
 - **Your repository's code and your task text leave your machine.** The agent reads the files it needs and sends them, with your task, to OpenRouter and on to whichever model provider OpenRouter routes to. Their retention and training policies apply, not ours.
 - **The sandbox has open internet access.** The agent and anything in the repository it runs (install scripts, tests) can contact any host. A malicious repository could try to send files out. Only run it on code you are willing to expose.
 - **The OpenRouter key is inside the sandbox while a run is going.** It reaches the VM through the run's startup payload (never baked into the image) because Codex needs it there. The agent, and so a malicious repository, could read it and send it somewhere. **Use a dedicated key with a spending limit, and rotate it if you ran untrusted code.**
-- **The key is kept out of logs, the UI and the stored run.** It is redacted from every stored event and every streamed byte, and tests assert it never appears in a request URL, header or runner body (`tests/unit/redaction.test.ts`, `tests/unit/microvm-launcher.test.ts`). The redaction is an exact-text match on the key, so it does not catch a transformed copy.
+- **The key is kept out of logs, the UI and the stored run.** It is redacted from every stored event and every streamed byte, and tests assert it never appears in a request URL, header or runner body (`tests/unit/redaction.test.ts`, `tests/unit/microvm-launcher.test.ts`). The redaction matches the exact key text plus known token prefixes (`sk-or-`, `github_pat_`, `ghp_`), so it does not catch a transformed copy such as an encoded one.
 - **The GitHub push token never enters the sandbox.** It stays in the control plane; the VM is gone before any push.
 - **Simulated runs carry no data.** They are fictional and contact nothing.
 
@@ -187,7 +191,8 @@ Restart the control plane. Without a token the button is hidden.
 - [`Development_Process.md`](Development_Process.md): the full plan, with phases, the test-first rules and the completion checklist.
 - [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md): each design choice, the evidence behind it, and what it costs.
 - [`docs/VALIDATION.md`](docs/VALIDATION.md): every measured number with its sample size, date and source, simulated versus real concurrency, and the gaps.
-- [`docs/PHASE_4_PLAN.md`](docs/PHASE_4_PLAN.md): the plan for measuring warm starts, and how it ended.
+- [`docs/EXPLAINED.md`](docs/EXPLAINED.md): a guided tour of the whole project, written for learning it.
+- [`docs/PHASE_4_PLAN.md`](docs/PHASE_4_PLAN.md) and [`docs/PHASE_5_6_PLAN.md`](docs/PHASE_5_6_PLAN.md): the plans for the warm-start measurement, and for the simulation, load test and validation.
 - [`docs/measurements/`](docs/measurements): the raw data (cold and warm starts, the real load run, the kill-all check, the browser check of the simulation).
 
 ## Built with
