@@ -1,10 +1,10 @@
 # One-command AWS setup script: design
 
-Status: **draft, waiting for the owner's approval.** Written on 2026-11-26 and not yet implemented. One question below blocks the real test.
+Status: **draft, waiting for the owner's approval.** Written on 2026-11-26 and not yet implemented. The test approach was decided the same day: **option B**.
 
-## Blocking question for the owner: how do we test it?
+## How we test it (decided 2026-11-26: option B)
 
-The script creates IAM resources, so it needs **admin-level AWS access**: IAM, CloudFormation, S3 and Lambda MicroVMs. The owner's everyday user, `kumpas-harness`, is deliberately narrow and must stay that way, and root is retired. Choose one:
+The script creates IAM resources, so it needs **admin-level AWS access**: IAM, CloudFormation, S3 and Lambda MicroVMs. The owner's everyday user, `kumpas-harness`, is deliberately narrow and must stay that way, and root is retired. The options were:
 
 - **A. A separate, clean AWS account** with an admin principal there (Identity Center or a temporary admin user).
   - It is the only true "clean account" test, and the one the README claims.
@@ -13,7 +13,9 @@ The script creates IAM resources, so it needs **admin-level AWS access**: IAM, C
   - It proves create, re-run, teardown and the scoped policy.
   - It does not prove a clean account: existing account settings, such as MicroVMs already being enabled, are inherited.
 
-Either way, `kumpas-harness` never gets admin rights, and I never handle the admin credentials: the owner sets the profile.
+**The owner chose B.** The owner creates a temporary admin principal in the Console, sets up its profile themselves, and deletes it after the teardown check. Every real step uses `--prefix throwbox-test`. Because B inherits this account's settings, the README will say that the script was tested on an existing account, not a clean one. A clean-account test (A) stays open for a contributor.
+
+`kumpas-harness` never gets admin rights, and I never handle the admin credentials: the owner sets the profile.
 
 ## Problem
 
@@ -77,7 +79,7 @@ Fake `aws` CLI runner only, injected:
 - teardown order, its dry run, the masked access key ids, the refusal of `hq-smoke`, and that only `<prefix>-*` images are touched;
 - `buildImage()`: the upload, the create call with the hooks, waiting, a `FAILED` image; and `smoke-test.ts` still builds an `hq-smoke-*` name.
 
-## Real checks (each one is its own go, depending on the answer above)
+## Real checks (each one is its own go, option B, prefix `throwbox-test`)
 
 1. A dry run with the admin profile. Free.
 2. `--yes`: the stack and one image build. About 3 minutes; the image build cost is not measured.

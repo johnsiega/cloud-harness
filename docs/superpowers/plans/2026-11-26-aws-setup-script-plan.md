@@ -12,7 +12,7 @@
 **Tech Stack:** Node 22 (TypeScript run directly, `node:test`), AWS CLI v2 (CloudFormation, S3, IAM, `lambda-microvms`). No new dependencies.
 
 **Spec:** [`docs/superpowers/specs/2026-11-26-aws-setup-script-design.md`](../specs/2026-11-26-aws-setup-script-design.md)
-**Status:** draft. Depends on the owner approving the spec **and answering its blocking question (test option A or B)**. Not yet implemented.
+**Status:** draft. Depends on the owner approving the spec. Test approach decided on 2026-11-26: **option B** (this account, a temporary admin principal, prefix `throwbox-test`). Not yet implemented.
 **Release:** v1.1.0, item 2 of 4. Independent of item 1.
 
 ## Global Constraints
@@ -187,15 +187,15 @@ Without `--yes`, it lists all of the above and changes nothing.
   - the output contains only masked key ids.
 - [ ] **Steps 2 to 4:** red run, the "tests approved" gate, implement, green, commit `feat: setup:aws --teardown (dry run by default)`.
 
-### Task 5: Real checks. The **owner chooses option A or B first** (spec: "Blocking question")
+### Task 5: Real checks (option B: this account, prefix `throwbox-test`)
 
-Every step runs with the owner's admin profile name (`$env:AWS_PROFILE = "<admin-profile>"`), never `kumpas-harness`. Option B uses `--prefix throwbox-test`.
+Before [go 1], the owner creates a temporary admin principal in the IAM Console and its profile, and tells me only the profile name. Every step runs as `$env:AWS_PROFILE = "<admin-profile>"`, never `kumpas-harness`, with `<p>` = `throwbox-test`.
 
 - [ ] **[go 1] Dry run.** `npm run setup:aws -- --prefix <p>`. Cost $0. It creates and deletes one change set only. Check that the printed policy equals the template.
-- [ ] **[go 2] Apply.** `npm run setup:aws -- --prefix <p> --yes`. It creates the stack and one image build of about 3 minutes. Cost: S3 storage of one zip (fractions of a cent); the image build cost is **not measured**. Option A may first need MicroVMs enabled or a quota check in the new account: stop and ask if `create-microvm-image` is refused.
+- [ ] **[go 2] Apply.** `npm run setup:aws -- --prefix <p> --yes`. It creates the stack and one image build of about 3 minutes. Cost: S3 storage of one zip (fractions of a cent); the image build cost is **not measured**. If `create-microvm-image` is refused, stop and ask.
 - [ ] **[go 3] Re-run.** The same command again, expecting "Nothing to change" and "image exists". Cost $0.
 - [ ] **[go 4] Scoped-user proof.** The owner creates the access key for `<p>-operator` in the IAM Console and runs `aws configure --profile <p>-operator` themselves. Then `$env:AWS_PROFILE="<p>-operator"`, `MICROVM_IMAGE_ARN=<printed>`, `npm start`, and one default hospital-queue run from the UI. Expect `done`. Also run `node scripts/kill-all.ts` (a dry run) as that user, to prove `list` works. Cost: a few cents (model about $0.002, MicroVM time not measured). **Any AccessDenied here is a template bug: a failing template test first, then the fix, then [go 2] and [go 4] again.**
-- [ ] **[go 5] Teardown.** `npm run setup:aws -- --prefix <p> --teardown`, then the same with `--yes`. Check that `describe-stacks` says it does not exist, `list-microvm-images` shows no `<p>-*` image, and `aws iam get-user --user-name <p>-operator` gives NoSuchEntity. Cost $0. With option B, the owner then deletes the temporary admin principal.
+- [ ] **[go 5] Teardown.** `npm run setup:aws -- --prefix <p> --teardown`, then the same with `--yes`. Check that `describe-stacks` says it does not exist, `list-microvm-images` shows no `<p>-*` image, and `aws iam get-user --user-name <p>-operator` gives NoSuchEntity. Cost $0. The owner then deletes the temporary admin principal and its profile.
 - [ ] Record the timings and outcomes in `docs/measurements/setup-aws.json`, with `<account-id>` in place of the real id.
 
 ### Task 6: Docs
@@ -203,7 +203,7 @@ Every step runs with the owner's admin profile name (`$env:AWS_PROFILE = "<admin
 - [ ] **README:**
   - "Run it yourself", step 2: replace the IAM paragraph with `npm run setup:aws` (a dry run, then `--yes`), the admin requirement, and the access key step.
   - Keep a one-line pointer to the template for people who do it by hand.
-  - In "What to know", update "Not re-verified on a clean account" to say what option A or B actually proved.
+  - In "What to know", replace "Not re-verified on a clean account" with: tested with `npm run setup:aws` on the author's existing account (option B), not on a clean one.
 - [ ] **CONTRIBUTING:** it has no setup-script line today (checked 2026-11-26). Add one sentence: "`npm run setup:aws` needs admin AWS access; test changes to it with a dry run first."
 - [ ] **DECISION_LOG:** "Setup: CloudFormation plus a thin script" (why not plain CLI calls: idempotence and deletion for free; why JSON: tests read the policy). Plus the evidence and the gaps.
 - [ ] **VALIDATION:** a new section.
@@ -213,7 +213,7 @@ Every step runs with the owner's admin profile name (`$env:AWS_PROFILE = "<admin
 ## Not verified by this plan
 
 - Regions other than `us-east-1`, and `ARM_64`.
-- Option B does not prove a truly clean account; option A does not prove an existing account with conflicting names.
+- A truly clean account (option A): option B inherits this account's settings, such as MicroVMs already being enabled and the 8 GB quota.
 - The image build's AWS cost.
 - `cfn-lint` (only if it is installed locally).
 - The template's policy is not compared with the live `kumpas-harness` policy, which that user cannot read. [go 4] is the functional proof instead.
