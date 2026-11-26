@@ -1,6 +1,6 @@
 # Proving the untested test paths in real MicroVMs: design
 
-Status: **draft, waiting for the owner's approval.** Written on 2026-11-26. Creating the two fixture repos is a public write that needs its own go.
+Status: **approved by the owner on 2026-11-26.** Not yet implemented. Creating the two fixture repos is a public write that needs its own go.
 
 ## Problem
 

@@ -1,6 +1,6 @@
 # One-command AWS setup script: design
 
-Status: **draft, waiting for the owner's approval.** Written on 2026-11-26 and not yet implemented. The test approach was decided the same day: **option B**.
+Status: **approved by the owner on 2026-11-26**, with the test approach **option B**. Not yet implemented.
 
 ## How we test it (decided 2026-11-26: option B)
 

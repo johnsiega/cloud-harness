@@ -12,7 +12,7 @@
 **Tech Stack:** Node 22 `node:test`, the existing control plane, the image `hq-smoke-1795605632129` (python3, pytest and detect-tests already in it), and `gh` for creating repos.
 
 **Spec:** [`docs/superpowers/specs/2026-11-26-real-test-paths-design.md`](../specs/2026-11-26-real-test-paths-design.md)
-**Status:** draft. Depends on the owner approving the spec. Not yet implemented.
+**Status:** spec approved on 2026-11-26; this plan is ready for the owner's review. Not yet implemented.
 **Release:** v1.1.0, item 3 of 4. Independent of items 1 and 2. If item 1 has shipped, these runs also exercise per-run keys; record which mode was on.
 
 ## Global Constraints

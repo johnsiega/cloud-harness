@@ -1,6 +1,6 @@
 # Per-run model key and zero-retention note: design
 
-Status: scope approved in brainstorming on 2026-11-26. On the same day four corrections were applied after checking OpenRouter's documentation and the code; they are **waiting for the owner's approval**. Not yet implemented.
+Status: **approved by the owner on 2026-11-26**, including the four corrections made after checking OpenRouter's documentation and the code. Not yet implemented.
 
 ## Problem
 

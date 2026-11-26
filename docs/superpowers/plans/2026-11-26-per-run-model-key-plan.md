@@ -9,7 +9,7 @@
 **Tech Stack:** Node 22 (TypeScript run directly, `node:test`), Hono, the OpenRouter management API (`/api/v1/keys`).
 
 **Spec:** [`docs/superpowers/specs/2026-11-26-per-run-model-key-design.md`](../specs/2026-11-26-per-run-model-key-design.md)
-**Status:** draft. Depends on the owner approving the spec and its four corrections. Not yet implemented.
+**Status:** spec approved on 2026-11-26; this plan is ready for the owner's review. Not yet implemented.
 **Release:** v1.1.0, item 1 of 4.
 
 ## Global Constraints
