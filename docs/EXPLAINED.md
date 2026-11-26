@@ -105,7 +105,7 @@ Browser ──► Control plane ──► AWS Lambda MicroVM ──► Codex CLI
 - `load-real.ts`: stepped real concurrency test.
 
 ### `tests/` and CI
-578 tests (577 pass, 1 skipped, the real-AWS integration test, which only runs with `RUN_INTEGRATION=1`). Tests live in `tests/unit`, `tests/simulation`, `tests/integration`, plus `scripts/*.test.ts`. CI (`.github/workflows/ci.yml`) runs the tests and the UI build on Ubuntu and Windows with no secrets and read-only permissions.
+624 tests (618 pass, 6 skipped, the real-AWS integration tests, which only run with `RUN_INTEGRATION=1`). Tests live in `tests/unit`, `tests/simulation`, `tests/integration`, plus `scripts/*.test.ts`. CI (`.github/workflows/ci.yml`) runs the tests and the UI build on Ubuntu and Windows with no secrets and read-only permissions.
 
 ---
 
@@ -194,7 +194,7 @@ Full tables, samples and sources are in [`VALIDATION.md`](VALIDATION.md). Highli
 | Real runs at once | **4** succeeded (K=2, 3, 4); the 5th VM was refused by the 8 GB memory limit |
 | A real run (13 runs, started 2 to 5 at a time) | first output median 6.8 s, total median 15.4 s |
 | 100 concurrent runs | **simulated**; the browser showed 100 in progress at once |
-| Tests | 578 (577 pass, 1 skipped), green on Ubuntu and Windows once CI confirms the push |
+| Tests | 624 (618 pass, 6 skipped), green on Ubuntu and Windows |
 
 **Reading the numbers correctly**
 - "Ready" excludes repo clone and model time, which dominate a real run.
@@ -227,7 +227,7 @@ Full tables, samples and sources are in [`VALIDATION.md`](VALIDATION.md). Highli
 
 ```powershell
 npm install
-npm test                      # 578 tests, no AWS needed
+npm test                      # 624 tests, no AWS needed
 npm run web:build             # build the UI
 npm start                     # real mode if keys/image set, otherwise demo mode
 $env:HARNESS_DEMO = "1"; npm start   # force demo mode
@@ -250,7 +250,7 @@ npm run test:integration        # one real MicroVM (RUN_INTEGRATION=1, spends a 
 - Measured **MicroVM startup (median 1.9 s over 20 runs)** and **resume (1.8 s)**, set a decision gate in advance, and **declined to build a warm pool** when the data failed it.
 - Ran **up to 4 concurrent real agent runs** and diagnosed the account's **8 GB MicroVM memory quota** as the limit; built a **seeded 100-run simulated load view** (one SSE connection, per-frame batching) to test the UI at scale, clearly labelled as simulated.
 - Found and fixed a **cross-site request vulnerability** (a web page could start a VM through a localhost API) with Host/Origin/content-type checks; kept API and GitHub tokens out of logs and out of the sandbox.
-- Delivered **578 automated tests, built test-first**, with CI on Ubuntu and Windows, plus a validation document where every number has its sample size, date and source.
+- Delivered **624 automated tests, built test-first**, with CI on Ubuntu and Windows, plus a validation document where every number has its sample size, date and source.
 
 ### Claims to avoid or qualify
 - ❌ "Runs 100+ concurrent agents." ✅ "Renders 100 **simulated** concurrent runs; real mode tested to 4 under the account quota."
