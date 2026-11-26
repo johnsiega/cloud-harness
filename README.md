@@ -1,8 +1,8 @@
 # Throwbox
 
-**Give your AI agent a box you can throw away.** A sandboxed AI coding agent platform.
+**Let an AI agent work on your code without giving it your computer.**
 
-**Watch an AI coding agent work inside a disposable cloud computer.**
+An open-source project showing how to run an AI coding agent safely: it works in a cloud machine you throw away, you read the diff, and you decide what happens next.
 
 [![CI](https://github.com/johnsiega/throwbox/actions/workflows/ci.yml/badge.svg)](https://github.com/johnsiega/throwbox/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -11,7 +11,7 @@
 ![AWS Lambda MicroVMs](https://img.shields.io/badge/AWS-Lambda%20MicroVMs-FF9900?logo=awslambda&logoColor=white)
 ![Built test-first](https://img.shields.io/badge/built-test--first-success)
 
-[What it is](#throwbox) · [Use cases](#use-cases) · [Try it](#try-it) · [How it works](#how-it-works) · [Run it yourself](#run-it-yourself) · [Using this project](#using-this-project) · [Contributing](#contributing)
+[What it is](#throwbox) · [What we learned](#what-building-it-taught-us) · [Use cases](#use-cases) · [Try it](#try-it) · [How it works](#how-it-works) · [Run it yourself](#run-it-yourself) · [Using this project](#using-this-project) · [Contributing](#contributing)
 
 Throwbox takes a public GitHub repository and a task written in plain words, such as "add a comment above this method". It starts a fresh, isolated virtual machine on AWS, lets an AI coding agent clone the repo, change the code, and run the project's tests, then shows you the result as a diff. You watch it happen live in three panels: what the agent is thinking, what it runs, and what changed.
 
@@ -24,6 +24,17 @@ For example, you can ask for "add a one-line comment above `enabled()` in `app/S
 AI agents write and run code. Letting one do that on your own laptop means trusting it with your files, your credentials and your network. A throwaway virtual machine that starts in seconds and is destroyed when the run ends changes that trade-off.
 
 **Status: v1.0.0**, a finished prototype. This project explores that idea end to end: the isolation, how fast it starts, what it costs, how to watch the agent without trusting it, and how to get its work out safely. It is a working prototype, built step by step with tests first, and it records what was measured and what was not.
+
+## What building it taught us
+
+Each of these came from building or measuring it, and each links to the evidence.
+
+- **A deleted API key still worked for a while.** Each run can get its own capped, expiring model key. After deleting one, it was still accepted at 15 s and refused at 20 s. One measurement, of the key-info endpoint, not a model call. So "delete" is not the safety net; the spending cap and expiry are. ([measured](docs/VALIDATION.md#13-per-run-openrouter-key-and-zero-retention-measured-2026-11-26))
+- **Listening on localhost was not enough.** A cross-site `text/plain` POST from a web page could start a real VM on our AWS account. Every route now checks Host and Origin and requires JSON. ([decision log](docs/DECISION_LOG.md#push-mechanics-and-first-real-push-phase-3))
+- **A secret in the image would be in every VM.** MicroVM environment variables are fixed when the image is built, so the model key is sent per run instead. ([decision log](docs/DECISION_LOG.md#openrouter-key-delivery-run-hook-payload-phase-0))
+- **The sandbox does not make the key safe.** The agent needs it inside a machine with open internet access, so a malicious repo could read it. We say so, and shrink what a thief gets. ([data boundaries](#data-boundaries))
+- **The clever optimisation was not worth it.** Resuming a suspended VM took about 1.8 s against 1.9 s for a fresh one, so we built no warm pool. ([decision log](docs/DECISION_LOG.md#warm-start-measured-no-warm-pool-phase-4))
+- **The cheapest model was a false economy.** On one small task, the smallest model got 2 of 5 diffs right; the default got 5 of 5. ([decision log](docs/DECISION_LOG.md#model-deepseekdeepseek-v41-flash-phase-0))
 
 ## Use it
 
@@ -297,7 +308,7 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fi
 CI runs the tests and the UI build on Ubuntu and Windows for every push and pull request. It uses no secrets and spends no AWS money.
 
 ```powershell
-npm test                  # unit tests, real-git push tests, runner tests (619 tests: 618 pass, 1 skipped)
+npm test                  # unit tests, real-git push tests, runner tests (624 tests: 618 pass, 6 skipped)
 npm run test:integration  # one real MicroVM; costs a few cents; set RUN_INTEGRATION=1 and MICROVM_IMAGE_ARN
 ```
 

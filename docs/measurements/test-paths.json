@@ -1,0 +1,98 @@
+{
+  "date": "2026-11-26T13:40:02.640Z",
+  "perRunKeys": true,
+  "runs": [
+    {
+      "name": "node-typed",
+      "repoUrl": "https://github.com/johnsiega/throwbox-fixture-node",
+      "task": "Add a one-line comment directly above the add function in math.js saying what it returns. Change nothing else. Keep it short.",
+      "testCommand": "node --test math.test.js",
+      "id": "87de21d2-5838-40ed-abba-98546c86e711",
+      "status": "done",
+      "tests": {
+        "type": "test_result",
+        "ts": 1795700382276,
+        "exitCode": 0,
+        "summary": "tests passed"
+      },
+      "doneExit": 0,
+      "diffBytes": 178,
+      "ms": 13326,
+      "stderr": []
+    },
+    {
+      "name": "node-skip",
+      "repoUrl": "https://github.com/johnsiega/throwbox-fixture-node",
+      "task": "Add a one-line comment directly above the add function in math.js saying what it returns. Change nothing else. Use plain words.",
+      "testCommand": "SKIP",
+      "id": "630a90ad-cc41-4c5c-9320-dedc8a88567e",
+      "status": "done",
+      "tests": {
+        "type": "test_result",
+        "ts": 1795700382312,
+        "exitCode": 0,
+        "summary": "tests not run: skipped by request",
+        "skipped": "skipped by request"
+      },
+      "doneExit": 0,
+      "diffBytes": 178,
+      "ms": 13358,
+      "stderr": []
+    },
+    {
+      "name": "python-auto",
+      "repoUrl": "https://github.com/johnsiega/throwbox-fixture-python",
+      "task": "Add a one-line comment directly above the add function in calc.py saying what it returns. Change nothing else.",
+      "id": "da74252e-5cbf-45c7-9bd1-3477f431dba0",
+      "status": "done",
+      "tests": {
+        "type": "test_result",
+        "ts": 1795700392609,
+        "exitCode": 0,
+        "summary": "tests passed"
+      },
+      "doneExit": 0,
+      "diffBytes": 170,
+      "ms": 23656,
+      "stderr": []
+    },
+    {
+      "name": "node-auto",
+      "repoUrl": "https://github.com/johnsiega/throwbox-fixture-node",
+      "task": "Add a one-line comment directly above the add function in math.js saying what it returns. Change nothing else.",
+      "id": "73629437-537e-4167-a056-352a6d28cda9",
+      "status": "done",
+      "tests": {
+        "type": "test_result",
+        "ts": 1795700393123,
+        "exitCode": 0,
+        "summary": "tests passed"
+      },
+      "doneExit": 0,
+      "diffBytes": 178,
+      "ms": 24176,
+      "stderr": []
+    },
+    {
+      "name": "node-failing",
+      "repoUrl": "https://github.com/johnsiega/throwbox-fixture-node",
+      "task": "Add a one-line comment directly above the add function in math.js saying what it returns. Change nothing else.",
+      "testCommand": "node -e \"process.exit(3)\"",
+      "id": "5ba0b42f-45ea-454f-adae-89525daa04e4",
+      "status": "error",
+      "tests": {
+        "type": "test_result",
+        "ts": 1795700402637,
+        "exitCode": 3,
+        "summary": "tests failed (exit 3)"
+      },
+      "doneExit": 3,
+      "diffBytes": 179,
+      "ms": 9513,
+      "stderr": [
+        "Model metadata for `deepseek/deepseek-v4.1-flash` not found. Defaulting to fallback metadata; this can degrade performance and cause issues.",
+        "Reading additional input from stdin..."
+      ]
+    }
+  ]
+}

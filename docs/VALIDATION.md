@@ -81,7 +81,7 @@ Five real runs each on the same task; "correct" means one comment directly above
 - **Integration test:** 1 real MicroVM through the real control plane (HTTP to SSE), run on 2026-11-25: passed (status done, 10 events, a 406-byte diff). Record: [`measurements/integration-2026-11-25.json`](measurements/integration-2026-11-25.json).
 - **CI:** the tests and the UI build ran green on Ubuntu and Windows for every commit pushed in Phase 5 (GitHub Actions). macOS was not tested.
 
-**Later (2026-11-26, per-run keys):** `npm test` runs 619 tests, 618 pass, 1 skipped.
+**Later (2026-11-26):** `npm test` runs 624 tests, 618 pass, 6 skipped (the real-AWS integration tests).
 
 ## 9. Costs
 
@@ -99,7 +99,7 @@ Five real runs each on the same task; "correct" means one comment directly above
 - Per-model results beyond N=5 per model, and any repository other than `jyvnn/hospital-queue`.
 - AWS and OpenRouter cost per run.
 - **Draft PR (section 12):** only one real PR was opened, on one repo whose default branch is `main`. The real GitHub error paths (401, 403, 404, 422, timeouts), branch protection, required reviews and rate limits, a repo whose default branch is not `main`, and two clicks racing against real GitHub were not exercised; they are covered by unit tests with a fake GitHub client only. The real-mode wiring in `api/main.ts` has no unit test; it was exercised only by this one run. The Push to branch button was not re-run for real after this change.
-- **Test command (section 11):** the Node and Python detection paths and the 180 s install limit have not run in a real MicroVM; a custom command and `skip` were never run for real; a repo with pytest or Node tests was not run for real.
+- **Test command (sections 11 and 14):** Node, Python, a typed command, `skip` and a failing command have now run for real (section 14). The 180 s install limit, `npm ci` falling back to `npm install`, and Node packages fetched from the network have not.
 - **Slower first output on a freshly built image** (about 29 to 48 s for the first runs, section 11): three follow-up runs got steadily faster (first activity 31.8, 14.2, 6.8 s), which fits a warm-up effect, but the cause was not isolated and the old image was not run to compare. How long an image stays warm when idle was not measured.
 
 ## 11. Per-run test command (measured, 2026-11-25)
@@ -112,7 +112,7 @@ Real runs of the build with the per-run test command (the runner detects the tes
 - **`johnsiega/goats-hsw-rag-chatbot`, Test command blank** (run `4b3ce2d2-64ea-4ea3-a988-2a65ac168114`): ended `done`; the rail showed the grey **Tests not run: no tests found** and the Terminal badge was grey, not green and not red. The diff was one comment line at the top of `app.py`. 1.3 s to ready, 28.8 s to first output, 35.0 s total. This is the case that used to end in error from a missing `composer.json`. I did not push this run.
 - **Slower than before (probably a warm-up effect; see the next bullet):** first output came after 29 to 48 s in all three runs on the new image, against a median of 6.8 s (and 15.4 s total) in the earlier 13 real runs. Ready times were normal (1.3 to 3.8 s), and after the first output the agent, tests and diff took only about 4 to 6 s. The old image was not run on the same day.
 - **Follow-up: three more smoke runs back to back on the same new image** (`SMOKE_IMAGE_ARN=<image> SMOKE_RUNS=3 npm run smoke`, hospital-queue, 2026-11-25): total 60.3 s, 28.0 s, 15.0 s; first agent activity at about 31.8 s, 14.2 s, 6.8 s; the test step (Composer install and tests) took about 20 s, 8 s, 4 s; ready 3.7 to 3.8 s each time. Everything after the sandbox came up got faster from run to run, including the test step, which involves no model. That points to a warm-up effect on a freshly created or idle image (the same pattern as the two slow K=2 runs in section 3, which were followed by fast runs), and not to the model service. **This is consistent with that explanation, not proof of it:** it is one image, three runs, one session, the cause was not isolated, and the old image was not run to compare. It was not checked how long an image stays warm after being idle. The three runs cost about $0.006 of model tokens plus a few minutes of one 2 GB MicroVM; the AWS cost was not measured.
-- **Not run for real:** the Node and Python detection and install paths, the 180 s install limit against a real slow install, a custom command, `skip`, and the request path for a typed command. These are covered by unit and script tests with fake `npm`, `python3` and pip programs only.
+- **Not run for real at the time** (see section 14 for what ran later): the Node and Python detection and install paths, the 180 s install limit against a real slow install, a custom command, `skip`, and the request path for a typed command. These are covered by unit and script tests with fake `npm`, `python3` and pip programs only.
 
 ## 12. Draft pull request (measured, 2026-11-25)
 
@@ -138,3 +138,17 @@ Real checks on one account and machine, each done once.
 - **One real run with per-run keys on** (run `73bb5432-3f86-4069-ac8b-51fdb6412979`, `jyvnn/hospital-queue`, image `hq-smoke-1795605632129`): `done`, tests passed, 28 s, 5.0 s to ready, a 476-byte diff (one comment line). No key text in the event stream, no warnings, and afterwards no per-run key and no MicroVM was left. That the run used the per-run key rests on the unit tests and the startup log, not on OpenRouter billing data.
 - **Zero retention** (switched on by the owner for "All other models"; the setting was not read back): run `4d061ca0-234c-4f05-8d3a-0afb4ea4e8fd`, same repo and task, `done`, tests passed, 19 s.
 - **Not verified:** model calls with a deleted key; whether the delay is always about 20 s; the cap with a request in flight; a run that fails to create its key against real OpenRouter; behaviour when no zero-retention provider serves a model.
+
+## 14. Node, Python, typed, skip and failing test paths (measured, 2026-11-26)
+
+Five real MicroVM runs through the real control plane on image `hq-smoke-1795605632129`, with per-run keys on (`tests/integration/test-paths.test.ts`, 5 of 5 passed). The first four ran at the same time. Repos: [throwbox-fixture-node](https://github.com/johnsiega/throwbox-fixture-node) and [throwbox-fixture-python](https://github.com/johnsiega/throwbox-fixture-python). Record: [`measurements/test-paths.json`](measurements/test-paths.json).
+
+| Run | Test command | Result | Seconds |
+|---|---|---|---|
+| Node | blank (auto-detect) | done, tests passed | 24.2 |
+| Python | blank (auto-detect, `requirements.txt` installed) | done, tests passed | 23.7 |
+| Node | `node --test math.test.js` | done, tests passed | 13.3 |
+| Node | `SKIP` | done, "skipped by request" | 13.4 |
+| Node | `node -e "process.exit(3)"` | error, exit 3, diff kept | 9.5 |
+
+Afterwards no MicroVM and no per-run key was left. One run each, on tiny repos with no Node dependencies: working examples, not reliability figures. That the Python package was downloaded and not already in the image was not checked.
