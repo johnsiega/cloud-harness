@@ -1,17 +1,19 @@
-# Cloud harness
+# Throwbox
+
+**Give your AI agent a box you can throw away.** A sandboxed AI coding agent platform.
 
 **Watch an AI coding agent work inside a disposable cloud computer.**
 
-[![CI](https://github.com/johnsiega/cloud-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/johnsiega/cloud-harness/actions/workflows/ci.yml)
+[![CI](https://github.com/johnsiega/throwbox/actions/workflows/ci.yml/badge.svg)](https://github.com/johnsiega/throwbox/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node.js 22.18+](https://img.shields.io/badge/node-22.18%2B-339933)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![AWS Lambda MicroVMs](https://img.shields.io/badge/AWS-Lambda%20MicroVMs-FF9900?logo=awslambda&logoColor=white)
 ![Built test-first](https://img.shields.io/badge/built-test--first-success)
 
-[What it is](#cloud-harness) · [Use cases](#use-cases) · [Try it](#try-it) · [How it works](#how-it-works) · [Run it yourself](#run-it-yourself) · [Using this project](#using-this-project) · [Contributing](#contributing)
+[What it is](#throwbox) · [Use cases](#use-cases) · [Try it](#try-it) · [How it works](#how-it-works) · [Run it yourself](#run-it-yourself) · [Using this project](#using-this-project) · [Contributing](#contributing)
 
-Cloud harness takes a public GitHub repository and a task written in plain words, such as "add a comment above this method". It starts a fresh, isolated virtual machine on AWS, lets an AI coding agent clone the repo, change the code, and run the project's tests, then shows you the result as a diff. You watch it happen live in three panels: what the agent is thinking, what it runs, and what changed.
+Throwbox takes a public GitHub repository and a task written in plain words, such as "add a comment above this method". It starts a fresh, isolated virtual machine on AWS, lets an AI coding agent clone the repo, change the code, and run the project's tests, then shows you the result as a diff. You watch it happen live in three panels: what the agent is thinking, what it runs, and what changed.
 
 If you like the change, one button pushes it to a new branch in a private repository. Nothing touches your own machine, and nothing is merged for you.
 
@@ -22,6 +24,30 @@ For example, you can ask for "add a one-line comment above `enabled()` in `app/S
 AI agents write and run code. Letting one do that on your own laptop means trusting it with your files, your credentials and your network. A throwaway virtual machine that starts in seconds and is destroyed when the run ends changes that trade-off.
 
 **Status: v1.0.0**, a finished prototype. This project explores that idea end to end: the isolation, how fast it starts, what it costs, how to watch the agent without trusting it, and how to get its work out safely. It is a working prototype, built step by step with tests first, and it records what was measured and what was not.
+
+## Use it
+
+Throwbox is MIT-licensed software that you run yourself. There is no hosted version: your AWS account, your keys, your cost. Pick how far you want to go.
+
+| Level | You need | You get |
+|---|---|---|
+| **1. Look** (a few minutes) | git, Node.js 22.18 or newer | The UI and the 100-run **simulation**. No accounts, no keys, no cost. |
+| **2. Run real agents** | Level 1, an AWS account with Lambda MicroVMs in `us-east-1`, the AWS CLI, an OpenRouter key | An agent working on any public GitHub repo, in your account. See [Run it yourself](#run-it-yourself). |
+| **3. Ship the result** | Level 2 and a fine-grained GitHub token | [Push the diff to a branch](#optional-push-patches-to-a-branch), or [open a draft PR into your own repo](#optional-open-a-draft-pr-into-your-own-repo). |
+
+Level 1:
+
+```powershell
+git clone https://github.com/johnsiega/throwbox
+cd throwbox
+npm install
+npm run web:build
+npm start
+```
+
+Then open <http://127.0.0.1:3000>. With no key and no image it starts in demo mode.
+
+**Make it yours.** Type another OpenRouter model id in the **Model** box (other models can do much worse; see [Models](docs/VALIDATION.md)). Teach it another language in `scripts/runner/detect-tests.mjs`, or add tools to the sandbox in `scripts/runner/Dockerfile` and rebuild the image. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Try it
 
@@ -53,7 +79,7 @@ The simulation is **not real**. The control plane generates seeded, fictional ev
 
 ## Use cases
 
-Cloud harness is a tool you run yourself, against your own AWS account. Here is what people could use it for. Some of these need a small change, and each says so.
+Throwbox is a tool you run yourself, against your own AWS account. Here is what people could use it for. Some of these need a small change, and each says so.
 
 | Use case | How |
 |---|---|
@@ -231,7 +257,7 @@ TypeScript (run directly by Node), Hono, React 19, Vite, AWS Lambda MicroVMs, th
 
 ## Using this project
 
-Cloud harness is open source under the [MIT License](LICENSE). In plain words: **you don't need to ask me for permission.** You can use it, copy it, change it, and build on it, including for work, as long as you keep the copyright notice and license text in any copy.
+Throwbox is open source under the [MIT License](LICENSE). In plain words: **you don't need to ask me for permission.** You can use it, copy it, change it, and build on it, including for work, as long as you keep the copyright notice and license text in any copy.
 
 A few things to know before you do:
 

@@ -39,7 +39,7 @@ export default function App() {
   return (
     <main className="app">
       <header className="top">
-        <h1>Cloud harness</h1>
+        <h1>Throwbox</h1>
         <p className="tag">Run a coding agent inside a Lambda MicroVM and watch it work.</p>
         <p className={`status ${view.phase}`} role="status">
           <span className="dot" aria-hidden="true" />

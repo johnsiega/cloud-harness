@@ -1,4 +1,4 @@
-# Cloud harness, explained
+# Throwbox, explained
 
 A guided tour of this project, written so you can learn all of it and explain it to someone else. It is long on purpose. Read it in order the first time, then use the headings to look things up.
 
@@ -260,7 +260,7 @@ npm run test:integration        # one real MicroVM (RUN_INTEGRATION=1, spends a 
 - Say it was **built with AI assistance** (Claude Code). The README already says so, and recruiters respect honesty. What matters is that you can explain the design, so use this guide.
 
 ### Where to link
-The GitHub repo (`johnsiega/cloud-harness`), with the README screenshot and `docs/VALIDATION.md`. Consider adding a repository description and topics (for example `aws-lambda`, `microvm`, `ai-agents`, `sse`, `typescript`, `hono`) and pinning it to your profile.
+The GitHub repo (`johnsiega/throwbox`), with the README screenshot and `docs/VALIDATION.md`. Consider adding a repository description and topics (for example `aws-lambda`, `microvm`, `ai-agents`, `sse`, `typescript`, `hono`) and pinning it to your profile.
 
 ### Likely interview questions, with answers you can give
 1. **Why a MicroVM instead of Docker?** A MicroVM has its own kernel and strong hardware-level isolation, which matters when running untrusted AI-written code; it still starts in about two seconds.

@@ -1,6 +1,6 @@
 # Security
 
-Cloud harness runs AI-written code on an AWS account you own, spends your money, and can hold a GitHub token. Please treat it that way.
+Throwbox runs AI-written code on an AWS account you own, spends your money, and can hold a GitHub token. Please treat it that way.
 
 ## Reporting a vulnerability
 
