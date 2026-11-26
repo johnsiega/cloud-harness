@@ -81,6 +81,8 @@ Five real runs each on the same task; "correct" means one comment directly above
 - **Integration test:** 1 real MicroVM through the real control plane (HTTP to SSE), run on 2026-11-25: passed (status done, 10 events, a 406-byte diff). Record: [`measurements/integration-2026-11-25.json`](measurements/integration-2026-11-25.json).
 - **CI:** the tests and the UI build ran green on Ubuntu and Windows for every commit pushed in Phase 5 (GitHub Actions). macOS was not tested.
 
+**Later (2026-11-26, per-run keys):** `npm test` runs 619 tests, 618 pass, 1 skipped.
+
 ## 9. Costs
 
 - **Model tokens:** about $0.002 per run on the default model, estimated from token counts in the Phase 0 smoke runs. Not re-measured; the spend on OpenRouter for the Phase 5 runs was **not recorded here**. Check your OpenRouter dashboard.
@@ -126,3 +128,13 @@ One real end-to-end check of the one-click draft PR, on a public repo the owner 
   - the control plane's log contained no token text.
 - **Repeat click:** a second `POST /runs/<id>/pr` answered HTTP 409 with the existing PR number, link and branch, and wrote nothing (still 1 PR, 1 harness branch, `main` unchanged).
 - **Not verified:** see the gaps in section 10. In particular the agent's comment text ("Filipino HSW rights questions ... from official documents") was written by the model and was not checked against the repo's content by this project; the PR is a draft precisely so a human reviews it.
+
+## 13. Per-run OpenRouter key and zero retention (measured, 2026-11-26)
+
+Real checks on one account and machine, each done once.
+
+- **Key refusal** (`scripts/check-run-keys.ts`, `GET /api/v1/key`, no model call, $0): a new key answered 200; a key with a 60 s expiry was refused (401) after 75 s; a deleted key was **still accepted** (200) right after deletion.
+- **Deletion delay** (one more key, polled every 5 s): 200 at 0, 5, 10 and 15 s after deletion, 401 at 20 s.
+- **One real run with per-run keys on** (run `73bb5432-3f86-4069-ac8b-51fdb6412979`, `jyvnn/hospital-queue`, image `hq-smoke-1795605632129`): `done`, tests passed, 28 s, 5.0 s to ready, a 476-byte diff (one comment line). No key text in the event stream, no warnings, and afterwards no per-run key and no MicroVM was left. That the run used the per-run key rests on the unit tests and the startup log, not on OpenRouter billing data.
+- **Zero retention** (switched on by the owner for "All other models"; the setting was not read back): run `4d061ca0-234c-4f05-8d3a-0afb4ea4e8fd`, same repo and task, `done`, tests passed, 19 s.
+- **Not verified:** model calls with a deleted key; whether the delay is always about 20 s; the cap with a request in flight; a run that fails to create its key against real OpenRouter; behaviour when no zero-retention provider serves a model.

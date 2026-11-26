@@ -138,7 +138,9 @@ Read this before pointing it at code you care about.
 
 - **Your repository's code and your task text leave your machine.** The agent reads the files it needs and sends them, with your task, to OpenRouter and on to whichever model provider OpenRouter routes to. Their retention and training policies apply, not ours.
 - **The sandbox has open internet access.** The agent and anything in the repository it runs (install scripts, tests) can contact any host. A malicious repository could try to send files out. Only run it on code you are willing to expose.
-- **The OpenRouter key is inside the sandbox while a run is going.** It reaches the VM through the run's startup payload (never baked into the image) because Codex needs it there. The agent, and so a malicious repository, could read it and send it somewhere. **Use a dedicated key with a spending limit, and rotate it if you ran untrusted code.**
+- **An OpenRouter key is inside the sandbox while a run is going.** It reaches the VM through the run's startup payload (never baked into the image) because Codex needs it there. The agent, and so a malicious repository, could read it and send it somewhere. By default that is your long-lived key: **use a dedicated key with a spending limit, and rotate it if you ran untrusted code.**
+- **Per-run keys (optional) shrink that risk.** With `OPENROUTER_MANAGEMENT_KEY` set, each run gets its own key, capped at `RUN_KEY_LIMIT_USD` (default $0.10), expiring after 30 minutes and deleted when the run ends. Your long-lived key then never enters the sandbox. A stolen run key can still spend up to its cap until it dies: in one test a deleted key was still accepted 15 s after deletion and refused at 20 s. If the control plane restarts or you use `kill-all`, the key is not deleted and only the expiry ends it. This covers runs started from the control plane, not the smoke, measurement or load scripts.
+- **Zero data retention (optional).** OpenRouter can be set, at [openrouter.ai/settings/privacy](https://openrouter.ai/settings/privacy), to route only to zero-data-retention providers; the default model is covered by the "All other models" switch. With it on, one real run on the default model still succeeded (2026-11-26). The provider still reads the code to answer, and what happens when no such provider serves a model is not documented or tested.
 - **The key is kept out of logs, the UI and the stored run.** It is redacted from every stored event and every streamed byte, and tests assert it never appears in a request URL, header or runner body (`tests/unit/redaction.test.ts`, `tests/unit/microvm-launcher.test.ts`). The redaction matches the exact key text plus known token prefixes (`sk-or-`, `github_pat_`, `ghp_`), so it does not catch a transformed copy such as an encoded one.
 - **The GitHub push and PR tokens never enter the sandbox.** They stay in the control plane; the VM is gone before any push or PR.
 - **Simulated runs carry no data.** They are fictional and contact nothing.
@@ -169,6 +171,15 @@ npm test
 ```
 OPENROUTER_API_KEY=your-openrouter-key
 ```
+
+Optionally, for a capped key per run, add a [management key](https://openrouter.ai/settings/management-keys) (not a normal API key) and, if you like, the cap in US dollars:
+
+```
+OPENROUTER_MANAGEMENT_KEY=your-management-key
+RUN_KEY_LIMIT_USD=0.10
+```
+
+The management key stays in the control plane. If creating a run's key fails, the run fails; the long-lived key is never used as a fallback.
 
 **4. Build the image.** This takes about three minutes, runs one real test task, and prints the image ARN.
 
@@ -286,7 +297,7 @@ Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) fi
 CI runs the tests and the UI build on Ubuntu and Windows for every push and pull request. It uses no secrets and spends no AWS money.
 
 ```powershell
-npm test                  # unit tests, real-git push tests, runner tests (578 tests: 577 pass, 1 skipped)
+npm test                  # unit tests, real-git push tests, runner tests (619 tests: 618 pass, 1 skipped)
 npm run test:integration  # one real MicroVM; costs a few cents; set RUN_INTEGRATION=1 and MICROVM_IMAGE_ARN
 ```
 
