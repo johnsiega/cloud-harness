@@ -100,6 +100,16 @@ describe("executeRun: success path", () => {
     assert.equal(during.status, "running");
     assert.deepEqual(during.events.map((e: any) => e.type), ["sandbox_resuming"]);
   });
+
+  test("launch gets the run id, which names the run's per-run OpenRouter key", async () => {
+    const f = fake({ chunks: HAPPY });
+    const seen: unknown[][] = [];
+    const orig = f.launcher.launch;
+    f.launcher.launch = async (...args: Parameters<typeof orig>) => { seen.push(args); return orig(...args); };
+    const r = await run(f);
+    assert.equal(seen.length, 1, "launch must be called once");
+    assert.equal(seen[0][1], r.id);
+  });
 });
 
 describe("executeRun: base commit", () => {

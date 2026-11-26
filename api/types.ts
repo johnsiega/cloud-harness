@@ -52,11 +52,11 @@ export interface RunStore {
 }
 
 // ---- sandbox seams ----
-export interface SandboxHandle { microvmId: string; endpoint: string; authToken: string; submitMs: number; readyMs: number }
+export interface SandboxHandle { microvmId: string; endpoint: string; authToken: string; submitMs: number; readyMs: number; keyHash?: string } // keyHash: the run's per-run OpenRouter key, deleted on terminate
 export interface PollResult { lines: string[]; next: number; done: boolean; exitCode: number | null; stderrTail: string[] }
 
 export interface MicroVMLauncher {
-  launch(req: RunRequest): Promise<SandboxHandle>;
+  launch(req: RunRequest, runId?: string): Promise<SandboxHandle>;
   start(h: SandboxHandle, req: RunRequest): Promise<void>;
   poll(h: SandboxHandle, since: number): Promise<PollResult>;
   terminate(h: SandboxHandle): Promise<void>;

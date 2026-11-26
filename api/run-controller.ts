@@ -33,7 +33,7 @@ export async function executeRun(d: ExecDeps, id: string): Promise<void> {
     emit({ type: "sandbox_resuming", ts: now() });
 
     try {
-      handle = await launcher.launch(rec.request);
+      handle = await launcher.launch(rec.request, id);
     } catch (e) {
       return fail(e);
     }

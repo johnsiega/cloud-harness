@@ -3,6 +3,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { createMicrovmLauncher } from "../../api/microvm-launcher.ts";
 import type { FetchLike } from "../../api/types.ts";
+import type { RunKeys } from "../../api/openrouter-keys.ts";
 
 const KEY = "sk-or-v1-LAUNCHERKEY-0123456789";
 const IMAGE = "arn:aws:lambda:us-east-1:111122223333:microvm-image:hq-smoke";
@@ -10,13 +11,13 @@ const ENDPOINT = "mvm-1.lambda-microvm.us-east-1.on.aws";
 const REQ = { repoUrl: "https://github.com/jyvnn/hospital-queue", task: "add a comment above enabled()" };
 type Call = { url: string; init: any };
 
-function setup(o: { health?: (n: number) => "ok" | "503" | "throw"; startStatus?: number; pollOk?: boolean; runError?: Error; terminateError?: Error } = {}) {
+function setup(o: { health?: (n: number) => "ok" | "503" | "throw"; startStatus?: number; pollOk?: boolean; runError?: Error; terminateError?: Error; runKeys?: RunKeys; warn?: (s: string) => void; order?: string[] } = {}) {
   let t = 1000;
   const awsCalls = { run: [] as any[], token: [] as string[], terminate: [] as string[] };
   const aws = {
     run: async (input: any) => { awsCalls.run.push(input); if (o.runError) throw o.runError; return { microvmId: "mvm-1", endpoint: ENDPOINT }; },
     authToken: async (id: string) => { awsCalls.token.push(id); return "tok-1"; },
-    terminate: async (id: string) => { awsCalls.terminate.push(id); if (o.terminateError) throw o.terminateError; },
+    terminate: async (id: string) => { awsCalls.terminate.push(id); o.order?.push("aws.terminate"); if (o.terminateError) throw o.terminateError; },
   };
   const calls: Call[] = [];
   let healthN = 0;
@@ -37,8 +38,22 @@ function setup(o: { health?: (n: number) => "ok" | "503" | "throw"; startStatus?
     aws, imageArn: IMAGE, apiKey: KEY, fetch,
     now: () => t, sleep: async (ms) => { t += ms; },
     readyTimeoutMs: 2000, readyPollMs: 250,
+    ...(o.runKeys ? { runKeys: o.runKeys } : {}), ...(o.warn ? { warn: o.warn } : {}),
   });
   return { launcher, awsCalls, calls };
+}
+
+// ---- per-run OpenRouter key ----
+const RUN_KEY = "sk-or-v1-PERRUNKEY-abcdef0123456789";
+const WARN = "warning: could not delete the per-run OpenRouter key; it expires on its own";
+
+function fakeKeys(o: { createError?: Error; deleteError?: Error; order?: string[] } = {}) {
+  const calls = { create: [] as string[], delete: [] as string[] };
+  const runKeys: RunKeys = {
+    create: async (label) => { calls.create.push(label); o.order?.push("create"); if (o.createError) throw o.createError; return { key: RUN_KEY, hash: "h1" }; },
+    delete: async (hash) => { calls.delete.push(hash); o.order?.push("delete"); if (o.deleteError) throw o.deleteError; },
+  };
+  return { runKeys, calls };
 }
 
 describe("MicroVMLauncher.launch", () => {
@@ -178,5 +193,95 @@ describe("secret handling", () => {
     const { runHookPayload, ...rest } = s.awsCalls.run[0];
     assert.ok(runHookPayload.includes(KEY));
     assert.ok(!JSON.stringify(rest).includes(KEY));
+  });
+});
+
+describe("per-run OpenRouter key", () => {
+  test("the payload carries the per-run key and never the long-lived key", async () => {
+    const k = fakeKeys();
+    const s = setup({ runKeys: k.runKeys });
+    await s.launcher.launch(REQ, "r1");
+    assert.equal(s.awsCalls.run.length, 1, "aws.run must be called");
+    assert.equal(JSON.parse(s.awsCalls.run[0].runHookPayload).OPENROUTER_API_KEY, RUN_KEY);
+    assert.ok(!JSON.stringify(s.awsCalls.run[0]).includes(KEY), "the long-lived key must not reach AWS");
+    assert.ok(!JSON.stringify(s.calls).includes(RUN_KEY), "the per-run key never appears in a runner call");
+  });
+
+  test("the key is named throwbox-run-<runId>, or throwbox-run-<now> without a run id", async () => {
+    const a = fakeKeys();
+    await setup({ runKeys: a.runKeys }).launcher.launch(REQ, "r1");
+    assert.deepEqual(a.calls.create, ["throwbox-run-r1"]);
+    const b = fakeKeys();
+    await setup({ runKeys: b.runKeys }).launcher.launch(REQ);
+    assert.deepEqual(b.calls.create, ["throwbox-run-1000"]);
+  });
+
+  test("an invalid repo URL or model creates no key and starts no VM", async () => {
+    for (const req of [{ ...REQ, repoUrl: "https://evil.com/a/b" }, { ...REQ, model: "not a model" }]) {
+      const k = fakeKeys();
+      const s = setup({ runKeys: k.runKeys });
+      await assert.rejects(s.launcher.launch(req, "r1"));
+      assert.deepEqual(k.calls.create, [], "no key for an invalid request");
+      assert.equal(s.awsCalls.run.length, 0);
+    }
+  });
+
+  test("a failed create starts no VM and never falls back to the long-lived key", async () => {
+    const k = fakeKeys({ createError: new Error("could not create a per-run OpenRouter key (HTTP 401)") });
+    const s = setup({ runKeys: k.runKeys });
+    await assert.rejects(s.launcher.launch(REQ, "r1"), /could not create a per-run OpenRouter key \(HTTP 401\)/);
+    assert.equal(k.calls.create.length, 1, "create must be tried");
+    assert.equal(s.awsCalls.run.length, 0, "no VM without a per-run key");
+  });
+
+  test("aws.run throwing (a quota refusal, say) still deletes the key and rethrows the AWS error", async () => {
+    const k = fakeKeys();
+    const s = setup({ runKeys: k.runKeys, runError: new Error("The base maximum allocated memory limit has been reached for this account.") });
+    await assert.rejects(s.launcher.launch(REQ, "r1"), /memory limit/);
+    assert.deepEqual(k.calls.delete, ["h1"]);
+    assert.deepEqual(s.awsCalls.terminate, [], "no MicroVM exists");
+  });
+
+  test("a VM that never becomes ready is terminated and its key deleted, once each", async () => {
+    const k = fakeKeys();
+    const s = setup({ runKeys: k.runKeys, health: () => "503" });
+    await assert.rejects(s.launcher.launch(REQ, "r1"), /not ready/i);
+    assert.deepEqual(s.awsCalls.terminate, ["mvm-1"]);
+    assert.deepEqual(k.calls.delete, ["h1"]);
+  });
+
+  test("the handle carries the key hash, and terminate deletes the key after terminating the VM", async () => {
+    const order: string[] = [];
+    const k = fakeKeys({ order });
+    const s = setup({ runKeys: k.runKeys, order });
+    const h = await s.launcher.launch(REQ, "r1");
+    assert.equal(h.keyHash, "h1");
+    await s.launcher.terminate(h);
+    assert.deepEqual(order, ["create", "aws.terminate", "delete"]);
+  });
+
+  test("a failed delete does not reject terminate and logs one fixed warning with no key or hash", async () => {
+    const warnings: string[] = [];
+    const k = fakeKeys({ deleteError: new Error(`HTTP 500 ${RUN_KEY}`) });
+    const s = setup({ runKeys: k.runKeys, warn: (m) => warnings.push(m) });
+    const h = await s.launcher.launch(REQ, "r1");
+    await assert.doesNotReject(s.launcher.terminate(h));
+    assert.equal(k.calls.delete.length, 1, "delete must be tried");
+    assert.deepEqual(warnings, [WARN]);
+  });
+
+  test("terminate deletes nothing for a handle without a key hash", async () => {
+    const k = fakeKeys();
+    const s = setup({ runKeys: k.runKeys });
+    await s.launcher.terminate({ microvmId: "mvm-1", endpoint: ENDPOINT, authToken: "tok-1", submitMs: 1, readyMs: 2 });
+    assert.deepEqual(s.awsCalls.terminate, ["mvm-1"], "the VM is still terminated");
+    assert.deepEqual(k.calls.delete, []);
+  });
+
+  test("feature off: the handle has no keyHash field and the long-lived key is in the payload", async () => {
+    const s = setup();
+    const h = await s.launcher.launch(REQ, "r1");
+    assert.ok(!("keyHash" in h));
+    assert.equal(JSON.parse(s.awsCalls.run[0].runHookPayload).OPENROUTER_API_KEY, KEY);
   });
 });
