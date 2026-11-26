@@ -2,6 +2,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { createRunKeys, parseRunKeyLimit } from "../../api/openrouter-keys.ts";
+import { checkRunKeys, listRunKeys } from "../../scripts/check-run-keys.ts";
+import type { RunKeys } from "../../api/openrouter-keys.ts";
 import type { FetchLike } from "../../api/types.ts";
 
 const MGMT = "sk-or-v1-MANAGEMENTKEY0123456789abcdefMGMT";
@@ -134,5 +136,112 @@ describe("parseRunKeyLimit", () => {
     for (const raw of ["0", "-1", "abc", "1e6", "1000000", "Infinity", "NaN", " ", "0x10"]) {
       assert.throws(() => parseRunKeyLimit(raw), { message: "RUN_KEY_LIMIT_USD must be a positive number of US dollars below 1000000" }, `value ${JSON.stringify(raw)}`);
     }
+  });
+});
+
+// ---- scripts/check-run-keys.ts ----
+const KEY_URL = "https://openrouter.ai/api/v1/key";
+
+function checkRig(o: { deletedStatus?: number; expiredStatus?: number; liveStatus?: number; fetchThrows?: boolean; deleteThrows?: boolean } = {}) {
+  const calls = { create: [] as [string, number | undefined][], delete: [] as string[], sleep: [] as number[], gets: [] as string[] };
+  const dead = new Set<string>();
+  let expired = false;
+  let n = 0;
+  const keys: RunKeys = {
+    create: async (label, ttlMs) => { calls.create.push([label, ttlMs]); n++; return { key: `sk-or-v1-CHECKKEY${n}`, hash: `h${n}` }; },
+    delete: async (hash) => { calls.delete.push(hash); if (o.deleteThrows) throw new Error("could not delete the per-run OpenRouter key (HTTP 500)"); dead.add(`sk-or-v1-CHECKKEY${hash.slice(1)}`); },
+  };
+  const fetch: FetchLike = async (url, init) => {
+    assert.equal(url, KEY_URL, "only the free key-info endpoint is called");
+    const key = init!.headers!.Authorization.replace("Bearer ", "");
+    calls.gets.push(key);
+    if (o.fetchThrows) throw new Error(`ECONNRESET ${key}`);
+    const status = dead.has(key) ? (o.deletedStatus ?? 401) : expired && key.endsWith("2") ? (o.expiredStatus ?? 401) : (o.liveStatus ?? 200);
+    return { ok: status < 300, status, json: async () => ({}), text: async () => "" };
+  };
+  const lines: string[] = [];
+  const sleep = async (ms: number) => { calls.sleep.push(ms); expired = true; };
+  const run = () => checkRunKeys({ keys, fetch, sleep, log: (s) => lines.push(s) });
+  return { run, calls, lines, text: () => lines.join("\n") };
+}
+
+describe("checkRunKeys", () => {
+  test("refused deleted and expired keys give exit 0, 'yes' twice, a 60 s key and a 75 s wait", async () => {
+    const r = checkRig();
+    assert.equal(await r.run(), 0);
+    assert.equal(r.calls.create.length, 2);
+    assert.match(r.calls.create[0][0], /^throwbox-check-/);
+    assert.equal(r.calls.create[0][1], undefined, "the first key has the normal expiry");
+    assert.equal(r.calls.create[1][1], 60_000);
+    assert.deepEqual(r.calls.sleep, [75_000]);
+    assert.deepEqual(r.calls.delete, ["h1", "h2"]);
+    assert.equal(r.calls.gets.length, 4);
+    assert.match(r.text(), /deleted key refused: yes/);
+    assert.match(r.text(), /expired key refused: yes/);
+  });
+  test("a deleted key that still answers 200 gives exit 1 and 'no'", async () => {
+    const r = checkRig({ deletedStatus: 200 });
+    assert.equal(await r.run(), 1);
+    assert.match(r.text(), /deleted key refused: no \(HTTP 200\)/);
+  });
+  test("an expired key that still answers 200 gives exit 1 and 'no'", async () => {
+    const r = checkRig({ expiredStatus: 200 });
+    assert.equal(await r.run(), 1);
+    assert.match(r.text(), /expired key refused: no \(HTTP 200\)/);
+  });
+  test("a fresh key that is not accepted gives exit 1 and still deletes it", async () => {
+    const r = checkRig({ liveStatus: 500 });
+    assert.equal(await r.run(), 1);
+    assert.ok(r.calls.delete.includes("h1"), "the created key is deleted");
+  });
+  test("a request error gives exit 1, deletes every created key and never prints a key", async () => {
+    const r = checkRig({ fetchThrows: true });
+    assert.equal(await r.run(), 1);
+    assert.equal(r.calls.delete.length, r.calls.create.length);
+    assert.ok(r.calls.create.length > 0, "a key must have been created");
+    assert.ok(!r.text().includes("sk-or-"), "no key in the output");
+  });
+  test("a delete that fails gives exit 1 and says so", async () => {
+    const r = checkRig({ deleteThrows: true });
+    assert.equal(await r.run(), 1);
+    assert.match(r.text(), /could not delete/);
+  });
+  test("the output never contains a key", async () => {
+    const r = checkRig();
+    await r.run();
+    assert.ok(r.lines.length > 0, "something must be printed");
+    assert.ok(!r.text().includes("sk-or-"));
+  });
+});
+
+describe("listRunKeys", () => {
+  test("lists only throwbox-run- keys with name and expires_at, across pages, including disabled and expired", async () => {
+    const urls: string[] = [];
+    const pages = [
+      [{ name: "throwbox-run-a", expires_at: "2026-11-26T10:00:00Z", label: "sk-or-v1-abc...xyz" }, { name: "my-own-key", expires_at: null }],
+      [{ name: "throwbox-run-b", expires_at: null }],
+      [],
+    ];
+    const fetch: FetchLike = async (url, init) => {
+      urls.push(url);
+      assert.equal(init!.headers!.Authorization, `Bearer ${MGMT}`);
+      return { ok: true, status: 200, json: async () => ({ data: pages[urls.length - 1] ?? [] }), text: async () => "" };
+    };
+    const lines: string[] = [];
+    assert.equal(await listRunKeys({ managementKey: MGMT, fetch, log: (s) => lines.push(s) }), 0);
+    const out = lines.join("\n");
+    assert.match(out, /throwbox-run-a.*2026-11-26T10:00:00Z/);
+    assert.match(out, /throwbox-run-b/);
+    assert.ok(!out.includes("my-own-key"));
+    assert.ok(!out.includes("sk-or-"), "no key or label is printed");
+    assert.ok(urls[0].includes("include_disabled=true") && urls[0].includes("include_expired=true"));
+    assert.ok(urls[1].includes("offset=2"), "the next page starts after the rows already read");
+  });
+  test("an error answer gives exit 1 with the status only", async () => {
+    const lines: string[] = [];
+    const fetch: FetchLike = async () => ({ ok: false, status: 401, json: async () => ({}), text: async () => MGMT });
+    assert.equal(await listRunKeys({ managementKey: MGMT, fetch, log: (s) => lines.push(s) }), 1);
+    assert.match(lines.join("\n"), /HTTP 401/);
+    assert.ok(!lines.join("\n").includes(MGMT));
   });
 });
