@@ -12,7 +12,7 @@
 **Tech Stack:** Node 22 (TypeScript run directly, `node:test`), AWS CLI v2 (CloudFormation, S3, IAM, `lambda-microvms`). No new dependencies.
 
 **Spec:** [`docs/superpowers/specs/2026-11-26-aws-setup-script-design.md`](../specs/2026-11-26-aws-setup-script-design.md)
-**Status:** spec approved on 2026-11-26; this plan is ready for the owner's review. Test approach: **option B** (this account, a temporary admin principal, prefix `throwbox-test`). Not yet implemented.
+**Status:** spec and plan approved by the owner on 2026-11-26. Test approach: **option B** (this account, a temporary admin principal, prefix `throwbox-test`). Not yet implemented.
 **Release:** v1.1.0, item 2 of 4. Independent of item 1.
 
 ## Global Constraints
