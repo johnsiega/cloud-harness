@@ -1,5 +1,5 @@
 // Control-plane entry point.   AWS_PROFILE=<your-profile> MICROVM_IMAGE_ARN=<arn> node api/main.ts
-// Secrets (OPENROUTER_API_KEY, optional GIT_PUSH_TOKEN) are read from the environment or a gitignored .env, never from code.
+// Secrets (OPENROUTER_API_KEY, optional OPENROUTER_MANAGEMENT_KEY and GIT_PUSH_TOKEN) are read from the environment or a gitignored .env, never from code.
 import { existsSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -7,6 +7,7 @@ import { createAwsMicrovms } from "./aws-microvms.ts";
 import { resolveMode } from "./mode.ts";
 import { createMicrovmLauncher } from "./microvm-launcher.ts";
 import { createGithubPrs } from "./github-pr.ts";
+import { createRunKeys, parseRunKeyLimit } from "./openrouter-keys.ts";
 import { createPatchDelivery } from "./patch-delivery.ts";
 import { parseRepoList } from "./repo-allowlist.ts";
 import { createRedactor } from "./redact.ts";
@@ -41,8 +42,13 @@ export async function main(): Promise<void> {
   const { apiKey, imageArn } = mode;
   setInterval(() => store.sweep(), 60_000).unref();
   const prToken = process.env.GIT_PR_TOKEN;
-  const redact = createRedactor([apiKey, process.env.GIT_PUSH_TOKEN ?? "", prToken ?? ""]);
-  const launcher = createMicrovmLauncher({ aws: createAwsMicrovms({ region }), imageArn, apiKey, region });
+  // Per-run keys are optional; the management key stays in this process.
+  const mgmt = process.env.OPENROUTER_MANAGEMENT_KEY?.trim();
+  const limitUsd = mgmt ? parseRunKeyLimit(process.env.RUN_KEY_LIMIT_USD) : 0;
+  const runKeys = mgmt ? createRunKeys({ managementKey: mgmt, limitUsd }) : undefined;
+  console.log(runKeys ? `per-run OpenRouter keys on (limit $${limitUsd} each, 30 min expiry)` : "per-run OpenRouter keys off (set OPENROUTER_MANAGEMENT_KEY in .env to enable)");
+  const redact = createRedactor([apiKey, mgmt ?? "", process.env.GIT_PUSH_TOKEN ?? "", prToken ?? ""]);
+  const launcher = createMicrovmLauncher({ aws: createAwsMicrovms({ region }), imageArn, apiKey, region, runKeys });
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   // Push is optional: without GIT_PUSH_TOKEN the route answers 503 and the UI hides the button. The token stays in this process.
   const pushToken = process.env.GIT_PUSH_TOKEN;

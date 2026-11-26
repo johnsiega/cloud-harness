@@ -70,3 +70,14 @@ describe("Redactor.event", () => {
     assert.notEqual(out, e);
   });
 });
+
+describe("per-run keys: the management key", () => {
+  // No sk-or- prefix here on purpose, so only the exact-value rule can catch it.
+  const MGMT = "mgmt-0123456789abcdef-management";
+  test("is redacted from text and events when it is in the secret list", () => {
+    const r = createRedactor([KEY, MGMT]);
+    assert.equal(r.text(`auth failed for ${MGMT}`), "auth failed for [REDACTED]");
+    const e = r.event({ type: "stderr", ts: 1, text: `bad ${MGMT} and ${KEY}` });
+    assert.equal((e as { text: string }).text, "bad [REDACTED] and [REDACTED]");
+  });
+});
